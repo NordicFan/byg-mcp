@@ -1,0 +1,33 @@
+[project]
+name = "byg-mcp"
+version = "0.1.0"
+description = "MCP-server med danske data for bygningsdesignere (arkitekter, ingeniører, bygningskonstruktører)"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.28.1",
+    "mcp>=2.3.0",
+    "numpy>=2.4.6",
+    "pypdf>=7.0.0",
+    "pyproj>=3.7.2",
+    "shapely>=2.2.0",
+    "tifffile>=2026.3.3",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.17,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "beautifulsoup4>=4.15.0",
+    "openpyxl>=3.1.5",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.4.1.post1",
+]
+
+[project.scripts]
+byg-mcp = "byg_mcp.server:main"
+
+[tool.pytest.ini_options]
+markers = ["live: kalder rigtige datakilder over nettet"]
+asyncio_default_fixture_loop_scope = "function"
