@@ -151,3 +151,102 @@ def kapitler() -> list[str]:
     for p in poster():
         set_.setdefault(str(p["kapitel"]), p["kapitel_titel"])
     return [f"{k}. {v}" for k, v in set_.items()]
+
+
+# ---------------------------------------------------------------- BR-vejledninger (M4b)
+
+
+@lru_cache(maxsize=1)
+def vejledning_meta() -> dict[str, Any]:
+    try:
+        return json.loads(resources.files("byg_mcp.data").joinpath("br18_vejledninger_meta.json").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+
+
+@lru_cache(maxsize=1)
+def vejledninger() -> list[dict[str, Any]]:
+    import gzip
+
+    try:
+        raw = resources.files("byg_mcp.data").joinpath("br18_vejledninger.jsonl.gz").read_bytes()
+    except FileNotFoundError:
+        return []
+    return [json.loads(l) for l in gzip.decompress(raw).decode("utf-8").splitlines() if l.strip()]
+
+
+@lru_cache(maxsize=1)
+def _vdb() -> sqlite3.Connection:
+    db = sqlite3.connect(":memory:", check_same_thread=False)
+    db.execute(
+        "CREATE VIRTUAL TABLE vj USING fts5(idx UNINDEXED, kapitel_titel, titel, tekst, tokenize='unicode61 remove_diacritics 0')"
+    )
+    db.executemany(
+        "INSERT INTO vj (idx, kapitel_titel, titel, tekst) VALUES (?, ?, ?, ?)",
+        [(i, v["kapitel_titel"], v["titel"], v["tekst"]) for i, v in enumerate(vejledninger())],
+    )
+    return db
+
+
+def _vj_ref(i: int) -> dict[str, Any]:
+    v = vejledninger()[i]
+    ref: dict[str, Any] = {
+        "id": i,
+        "kapitel": f"{v['kapitel']}. {v['kapitel_titel']}",
+        "dokument": v["titel"],
+        "kilde": v["kilde"],
+        "url": v.get("pdf_url") or v["url"],
+    }
+    if v.get("side"):
+        ref["side"] = v["side"]
+    return ref
+
+
+def soeg_vejledninger(tekst: str, kapitel: str | None = None, maks: int = 8) -> list[dict[str, Any]]:
+    """Fuldtekstsøgning i BR-vejledningerne (HTML og PDF). Samme forespørgselslogik som i reglementet."""
+    if not vejledninger():
+        return []
+    db = _vdb()
+    for op in ("AND", "OR"):
+        q = _fts_query(tekst, op)
+        if not q:
+            return []
+        rows = db.execute(
+            "SELECT idx, snippet(vj, 3, '«', '»', ' … ', 28), bm25(vj, 0, 0.3, 3.0, 1.0) AS s FROM vj WHERE vj MATCH ? ORDER BY s LIMIT ?",
+            (q, maks * 5),
+        ).fetchall()
+        hits, set_ = [], set()
+        for idx, uddrag, _ in rows:
+            v = vejledninger()[idx]
+            if kapitel and str(v["kapitel"]).upper() != str(kapitel).lstrip("0").upper():
+                continue
+            noegle = (v.get("pdf_url") or v["url"], v.get("side"))
+            if noegle in set_:
+                continue
+            set_.add(noegle)
+            hits.append({**_vj_ref(idx), "uddrag": uddrag, "soegemetode": "alle ord" if op == "AND" else "mindst ét ord"})
+            if len(hits) >= maks:
+                break
+        if hits:
+            return hits
+    return []
+
+
+def hent_vejledning(id_: int, naboer: int = 1) -> dict[str, Any]:
+    """Hent et tekststykke med de nærmeste stykker fra samme dokument (fx side før/efter i en PDF)."""
+    alle = vejledninger()
+    if not 0 <= id_ < len(alle):
+        raise LookupError(f"Vejledningsstykke {id_} findes ikke")
+    v = alle[id_]
+    noegle = v.get("pdf_url") or v["url"]
+    samme = [i for i, x in enumerate(alle) if (x.get("pdf_url") or x["url"]) == noegle]
+    pos = samme.index(id_)
+    valgte = samme[max(0, pos - naboer): pos + naboer + 1]
+    return {
+        **_vj_ref(id_),
+        "tekst": "\n\n".join(
+            (f"[side {alle[i]['side']}]\n" if alle[i].get("side") else "") + alle[i]["tekst"] for i in valgte
+        ),
+        "stykker": [_vj_ref(i) | {"valgt": i == id_} for i in valgte],
+        "dokument_antal_stykker": len(samme),
+    }

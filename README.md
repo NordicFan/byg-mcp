@@ -2,7 +2,7 @@
 
 En MCP-server, der giver sprogmodeller adgang til danske data for arkitekter, ingeniører og bygningskonstruktører.
 
-**Status:** M5 færdig, se [08-m5/m5-notat.md](08-m5/m5-notat.md), [07-m4/m4-notat.md](07-m4/m4-notat.md), [06-m3/m3-notat.md](06-m3/m3-notat.md), [05-m2/m2-notat.md](05-m2/m2-notat.md), [04-m1/m1-notat.md](04-m1/m1-notat.md) og [03-m0/m0-notat.md](03-m0/m0-notat.md). Baggrund: [screening](01-screening/screening.md), [filtrering](01-screening/filtrering.md), [arkitektur](02-arkitektur/arkitektur.md).
+**Status:** M5 og M4b færdige, se [09-m4b/m4b-notat.md](09-m4b/m4b-notat.md), [08-m5/m5-notat.md](08-m5/m5-notat.md), [07-m4/m4-notat.md](07-m4/m4-notat.md), [06-m3/m3-notat.md](06-m3/m3-notat.md), [05-m2/m2-notat.md](05-m2/m2-notat.md), [04-m1/m1-notat.md](04-m1/m1-notat.md) og [03-m0/m0-notat.md](03-m0/m0-notat.md). Baggrund: [screening](01-screening/screening.md), [filtrering](01-screening/filtrering.md), [arkitektur](02-arkitektur/arkitektur.md).
 
 ## Værktøjer
 
@@ -18,7 +18,9 @@ En MCP-server, der giver sprogmodeller adgang til danske data for arkitekter, in
 | `jord_geologi` | Jordart (1:25.000/1:200.000), nærmeste boringer med jordlag og vandstand, terrænnært grundvand (vinter/sommer) | GEUS, HIP | ja (HIP) |
 | `kort_udsnit` | Billede: ortofoto eller skyggekort af terræn/overflade + link til skråfoto | Dataforsyningen | ja |
 | `grundrapport` | Samlet screening: ejendom, bygninger, plangrundlag, restriktioner, terræn, jord og grundvand | alle ovenstående | ja |
-| `br18_soeg` | Fritekstsøgning i bygningsreglementet (aktuel konsolideret version), med synonymer (fx LCA → klimapåvirkning) | bygningsreglementet.dk (lokal kopi) | nej |
+| `br18_soeg` | Fritekstsøgning i bygningsreglementet (aktuel konsolideret version), med synonymer (fx LCA → klimapåvirkning). Viser også de bedste hits fra vejledningerne | bygningsreglementet.dk (lokal kopi) | nej |
+| `br18_vejledning_soeg` | Søgning i BR-vejledningerne inkl. PDF-bilag (præ-accepterede løsninger, spørgsmål og svar) med dokument og side | bygningsreglementet.dk (lokal kopi) | nej |
+| `br18_vejledning_hent` | Fuld tekst af et vejledningsstykke plus naboer fra samme dokument | bygningsreglementet.dk (lokal kopi) | nej |
 | `br18_paragraf` | Fuld ordlyd af §§ eller bilag ("58", "251-256", "Bilag 2") med links til vejledninger og standarder | bygningsreglementet.dk (lokal kopi) | nej |
 | `br18_kapitel` | Oversigt over kapitler, afsnit og paragrafnumre | bygningsreglementet.dk (lokal kopi) | nej |
 | `lov_soeg` / `lov_paragraf` | Gældende love og bekendtgørelser, enkelte paragraffer (byggeloven, planloven, naturbeskyttelsesloven m.fl.) | Retsinformation | nej |
@@ -88,6 +90,12 @@ Bygningsreglementet opdateres typisk 1. januar og 1. juli. Hent den nye version 
 
 ```bash
 uv run python scripts/indsaml_br18.py
+```
+
+BR-vejledningerne (HTML og PDF) hentes med scriptet herunder. Det tager ca. 70 minutter. Med `--kun-rens` renses den gemte fil igen uden ny crawl:
+
+```bash
+uv run python scripts/indsaml_vejledninger.py
 ```
 
 BR18's LCA-data (bilag 2, tabel 7, 8.1, 8.2) opdateres med:

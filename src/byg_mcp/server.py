@@ -1029,22 +1029,68 @@ def _br18_kilde(note: str | None = None) -> dict[str, Any]:
 
 @mcp.tool()
 @brugerfejl
-async def br18_soeg(tekst: str, kapitel: str | None = None, maks_resultater: int = 8) -> dict[str, Any]:
+async def br18_soeg(
+    tekst: str, kapitel: str | None = None, maks_resultater: int = 8, inkl_vejledninger: bool = True
+) -> dict[str, Any]:
     """Søg i bygningsreglementet (BR18, aktuel konsolideret version) med fritekst, fx "værn højde altan",
-    "grænseværdi klimapåvirkning", "radon", "dagslys". Returnerer relevante paragraffer med uddrag.
-    Hent derefter den fulde tekst med `br18_paragraf`. `kapitel` kan begrænse søgningen (fx "11").
-
-    BR-vejledningerne (der ofte indeholder de konkrete tal og eksempler, fx for brand) er ikke indekseret.
-    Kun links til dem medfølger i `br18_paragraf`.
+    "grænseværdi klimapåvirkning", "radon", "dagslys". Returnerer relevante paragraffer med uddrag og
+    (som standard) de mest relevante steder i BR-vejledningerne, hvor de konkrete løsninger og tal ofte står.
+    Hent den fulde paragraf med `br18_paragraf` og vejledningsteksten med `br18_vejledning_hent`.
+    `kapitel` kan begrænse søgningen (fx "11").
     """
     from byg_mcp.domain import vidensbase as vb
 
     hits = vb.soeg(tekst, kapitel, maks_resultater)
-    return {
+    svar: dict[str, Any] = {
         "soegning": tekst,
         "resultater": hits or "Ingen paragraffer fundet. Prøv andre ord eller se `br18_kapitel`.",
-        "kilder": [_br18_kilde()],
     }
+    if inkl_vejledninger:
+        svar["vejledninger"] = vb.soeg_vejledninger(tekst, kapitel, 4) or "Ingen vejledningstekst fundet"
+    svar["kilder"] = [_br18_kilde()] + ([_vejledning_kilde()] if inkl_vejledninger else [])
+    return svar
+
+
+def _vejledning_kilde() -> dict[str, Any]:
+    from byg_mcp.domain import vidensbase as vb
+
+    m = vb.vejledning_meta()
+    return {
+        "navn": "Bygningsreglementets vejledninger",
+        "udbyder": "Bolig- og Planstyrelsen (bygningsreglementet.dk)",
+        "url": "https://www.bygningsreglementet.dk/vejledninger/bygningsreglementets-vejledninger/oversigt_br_vejledninger/",
+        "licens": "Offentlig vejledning",
+        "hentet": m.get("hentet"),
+        "note": "Vejledninger er ikke bindende, men beskriver præ-accepterede løsninger og fortolkninger. "
+        "Tekst fra PDF'er er udtrukket automatisk. Tabeller og figurer kan være ufuldstændige.",
+    }
+
+
+@mcp.tool()
+@brugerfejl
+async def br18_vejledning_soeg(tekst: str, kapitel: str | None = None, maks_resultater: int = 8) -> dict[str, Any]:
+    """Søg i Bygningsreglementets vejledninger: præ-accepterede løsninger (fx brand for enfamiliehuse,
+    etageboliger, kontorer), spørgsmål og svar samt uddybende vejledning til hvert kapitel. Fx "flugtvej
+    afstand etagebolig", "dagslys glasareal 10 procent", "brandklasse 2 tagdækning". Returnerer dokument,
+    side og uddrag. Hent hele teksten med `br18_vejledning_hent` (id).
+    """
+    from byg_mcp.domain import vidensbase as vb
+
+    if not vb.vejledninger():
+        raise LookupError("Vejledningerne er ikke indsamlet. Kør scripts/indsaml_vejledninger.py")
+    hits = vb.soeg_vejledninger(tekst, kapitel, maks_resultater)
+    return {"soegning": tekst, "resultater": hits or "Ingen vejledningstekst fundet. Prøv andre ord.",
+            "kilder": [_vejledning_kilde()]}
+
+
+@mcp.tool()
+@brugerfejl
+async def br18_vejledning_hent(id: int, naboer: int = 1) -> dict[str, Any]:
+    """Hent den fulde tekst af et stykke vejledning (id fra `br18_vejledning_soeg` eller `br18_soeg`) samt
+    `naboer` stykker før og efter fra samme dokument (fx forrige og næste side i en PDF). Citér dokument og side."""
+    from byg_mcp.domain import vidensbase as vb
+
+    return {**vb.hent_vejledning(id, max(0, min(3, naboer))), "kilder": [_vejledning_kilde()]}
 
 
 @mcp.tool()

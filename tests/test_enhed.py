@@ -204,3 +204,49 @@ def test_prisomraade():
     assert _prisomraade(10.39, 590000) == "DK1"  # Odense
     assert _prisomraade(12.57, 724380) == "DK2"  # København
     assert _prisomraade(14.9, 870000) == "DK2"   # Bornholm
+
+
+# --- BR-vejledninger (M4b) ---
+import importlib.util as _ilu  # noqa: E402
+import pathlib as _pl  # noqa: E402
+
+_spec = _ilu.spec_from_file_location("indsaml_vejledninger", _pl.Path(__file__).parents[1] / "scripts" / "indsaml_vejledninger.py")
+
+
+def _vejl_script():
+    import sys as _sys
+
+    _sys.path.insert(0, str(_pl.Path(__file__).parents[1] / "scripts"))
+    m = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(m)
+    return m
+
+
+def test_vejledning_rens_versioner_og_dubletter():
+    m = _vejl_script()
+    p = lambda titel, tekst, kilde="pdf": {"kapitel": "5", "titel": titel, "kilde": kilde, "url": "u", "pdf_url": titel, "tekst": tekst}  # noqa: E731
+    alle = [
+        p("Bilag 2: Etageboliger version 1.4", "ny tekst"),
+        p("Bilag 2: Etageboliger version 1.4 med ændringsmarkeringer", "markeret tekst"),
+        p("Bilag 2: Etageboliger version 1.1", "gammel tekst"),
+        p("Bilag 8 version 1.1 med ændringsmarkeringer", "x"),
+        p("Bilag 8 version 1.2", "bilag 8 ny"),
+        p("Side A", "Samme  tekst", "html"),
+        p("Side B", "samme tekst", "html"),
+    ]
+    tekster = [x["tekst"] for x in m.rens(alle)]
+    assert tekster == ["ny tekst", "bilag 8 ny", "Samme  tekst"]
+
+
+def test_vejledninger_indsamlet_og_soegbare():
+    vj = vb.vejledninger()
+    if not vj:
+        import pytest
+
+        pytest.skip("Vejledninger ikke indsamlet")
+    assert len(vj) > 1000 and vb.vejledning_meta()["antal_pdf"] > 50
+    assert not any("ændringsmarkering" in v["titel"].lower() for v in vj if v["kilde"] == "pdf")
+    hits = vb.soeg_vejledninger("redningsåbning", maks=5)
+    assert hits and any("Præ-accepterede" in h["dokument"] for h in hits)
+    h = vb.hent_vejledning(hits[0]["id"], 1)
+    assert "redningsåbning" in h["tekst"].lower() and len(h["stykker"]) >= 2
