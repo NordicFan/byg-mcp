@@ -1,0 +1,17 @@
+{
+  "name": "byg-mcp-cloudflare",
+  "private": true,
+  "description": "Worker og container-opsætning til byg-mcp på Cloudflare Containers",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "0.3.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261102.1",
+    "typescript": "5.9.3",
+    "wrangler": "4.156.2"
+  }
+}

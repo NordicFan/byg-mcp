@@ -1,0 +1,30 @@
+# Enhedstests ved push og pull requests. Selve build og deploy til Cloudflare Containers sker i
+# Cloudflare Workers Builds, som er koblet direkte på repoet (ingen API-token i GitHub).
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.17"
+      - name: Enhedstests (uden net)
+        run: uv run --frozen pytest -m "not live" -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Typetjek Worker
+        run: npx tsc --noEmit

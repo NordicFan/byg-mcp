@@ -24,6 +24,8 @@ def _load_dotenv() -> None:
 class Config:
     datafordeler_api_key: str | None
     dataforsyningen_token: str | None
+    emo_brugernavn: str | None
+    emo_adgangskode: str | None
     http_timeout: float
     user_agent: str
     cache_path: Path
@@ -34,6 +36,8 @@ def load_config() -> Config:
     return Config(
         datafordeler_api_key=os.environ.get("DATAFORDELER_API_KEY") or None,
         dataforsyningen_token=os.environ.get("DATAFORSYNINGEN_TOKEN") or None,
+        emo_brugernavn=os.environ.get("EMO_BRUGERNAVN") or None,
+        emo_adgangskode=os.environ.get("EMO_ADGANGSKODE") or None,
         http_timeout=float(os.environ.get("BYG_MCP_HTTP_TIMEOUT", "30")),
         user_agent=os.environ.get("BYG_MCP_USER_AGENT", "byg-mcp/0.1 (forskningsprototype)"),
         cache_path=Path(

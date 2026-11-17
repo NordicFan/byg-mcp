@@ -2,6 +2,8 @@
 
 import logging
 
+import pytest
+
 from byg_mcp.domain.bygning import kodelister, noegletal
 from byg_mcp.infra.cache import SQLiteCache
 from byg_mcp.infra.logging import maskér, sikr_logning
@@ -250,3 +252,108 @@ def test_vejledninger_indsamlet_og_soegbare():
     assert hits and any("Præ-accepterede" in h["dokument"] for h in hits)
     h = vb.hent_vejledning(hits[0]["id"], 1)
     assert "redningsåbning" in h["tekst"].lower() and len(h["stykker"]) >= 2
+
+
+@pytest.mark.asyncio
+async def test_http_app_kun_hemmelig_sti():
+    """HTTP-tilstand: alt andet end /mcp/<token> giver 404."""
+    import httpx
+
+    from byg_mcp.server import _http_app
+
+    token = "t" * 40
+    app = _http_app(token)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+        for sti in ["/", "/mcp", "/mcp/", "/mcp/forkert", "/" + token]:
+            r = await c.post(sti, json={})
+            assert r.status_code == 404, sti
+
+
+# --- M6: energimærker, Klimaatlas og oversvømmelse ---------------------------------------------
+
+from byg_mcp.adapters.energimaerke import adgang_naegtet, emo_dato, normaliser_forbedringer, normaliser_maerke, vaelg_gaeldende
+from byg_mcp.adapters.klimaatlas import opstil
+from byg_mcp.adapters.oversvoemmelse import feature_info_vaerdi, ring
+
+
+def test_emo_dato_formater():
+    assert emo_dato("/Date(1719352800000+0200)/") == "2024-06-26"
+    assert emo_dato("2024-06-26T00:00:00") == "2024-06-26"
+    assert emo_dato("26-06-2024") == "2024-06-26"
+    assert emo_dato(None) is None
+
+
+def test_emo_adgang_naegtet():
+    assert adgang_naegtet({"EnergyLabels": None, "ResponseStatus": {"Status": "ACCESS_DENIED", "StatusMessage": "Unauthorized access."}}) == "Unauthorized access."
+    indre = {"GetEnergyLabelImprovementSuggestionsByNumberResult": {"Response": {"Status": "ACCESS_DENIED", "Message": "Incorrect username / password"}}}
+    assert adgang_naegtet(indre) == "Incorrect username / password"
+    assert adgang_naegtet({"ResponseStatus": {"Status": "SUCCESS"}, "EnergyLabels": []}) is None
+
+
+def test_emo_vaelg_gaeldende_mærke():
+    raa = [
+        {"EnergyLabelSerialIdentifier": "1", "EnergyLabelClassification": "D", "LabelStatus": "EXPIRED", "ValidFrom": "2010-01-01"},
+        {"EnergyLabelSerialIdentifier": "2", "EnergyLabelClassification": "C", "LabelStatus": "VALID", "ValidFrom": "2019-05-01",
+         "Buildings": [{"BuildingNumber": "1", "YearOfConstruction": "1966", "HeatSupply": "Fjernvarme"}]},
+        {"EnergyLabelSerialIdentifier": "3", "EnergyLabelClassification": "B", "LabelStatus": "VALID", "ValidFrom": "2023-02-01"},
+    ]
+    maerker = [normaliser_maerke(m) for m in raa]
+    assert maerker[1]["bygninger"][0]["opfoerelsesaar"] == "1966"
+    assert vaelg_gaeldende(maerker)["nummer"] == "3"
+    assert vaelg_gaeldende(maerker[:1])["nummer"] == "1"  # intet gyldigt → nyeste
+    assert vaelg_gaeldende([]) is None
+
+
+def test_emo_forbedringer():
+    label = {
+        "CurrentEnergyLabel": "D", "PossibleEnergyLabelForAllProfitableProposals": "C", "PossibleEnergyLabelForAllProposals": "B",
+        "Proposals": [{"ProposalHeadline": "Efterisolering af loft", "Investment": 42000, "Savings": "3.100 kr./år", "LifeTime": 40, "Profitable": True}],
+        "ProposalsCalculations": [{"TotalInvestmentProfitable": 42000, "TotalInvestmentAll": 180000}],
+    }
+    f = normaliser_forbedringer(label)
+    assert f["klasse_efter_rentable_forslag"] == "C" and f["antal_forslag"] == 1
+    assert f["forslag"][0]["investering_kr"] == 42000 and f["samlet"]["investering_alle_kr"] == 180000
+
+
+def test_klimaatlas_opstil():
+    def r(scen, per, ae, pct, v):
+        return {"scenarie": scen, "periode": per, "absolutaendring": ae, "percentil": pct, "Skybrud": v}
+    rows = [r(0, 1, 1, 10, 0.2), r(0, 1, 1, 50, 0.25), r(0, 1, 1, 90, 0.3),
+            r(45, 4, 1, 10, 0.2), r(45, 4, 1, 50, 0.35), r(45, 4, 1, 90, 0.6), r(45, 4, 2, 50, 40.123)]
+    ud = opstil(rows, [("Skybrud", "Skybrud", "hændelser pr. år", "%", 2)], [("mellem", 45, "RCP4,5")], [3, 4])
+    ind = ud[0]
+    assert ind["reference_1981_2010"] == {"median": 0.25, "interval_10_90": [0.2, 0.3]}
+    slut = ind["fremskrivning"]["mellem (RCP4,5)"]["2071-2100"]
+    assert slut["median"] == 0.35 and slut["aendring_median"] == 40.1 and slut["aendring_enhed"] == "%"
+    assert "2041-2070" not in ind["fremskrivning"]["mellem (RCP4,5)"]
+
+
+def test_feature_info_vaerdi():
+    assert feature_info_vaerdi("Layer 'x'\n  Feature 0:\n    value_0 = '1.37'\n") == 1.37
+    assert feature_info_vaerdi("Results for FeatureType 'x':\nGRAY_INDEX = 0.045\n") == 0.045
+    assert feature_info_vaerdi("value_0 = '-9999'") is None
+    assert feature_info_vaerdi("no results") is None
+
+
+def test_ring_omkring_punkt():
+    pts = ring(100, 200, 10)
+    assert len(pts) == 9 and pts[0] == (100, 200)
+    assert ring(1, 2, 0) == [(1, 2)]
+
+
+@pytest.mark.asyncio
+async def test_havvand_kode_300_filtreres(monkeypatch):
+    from byg_mcp.adapters.base import TTLCache
+    from byg_mcp.adapters.oversvoemmelse import HydroAdapter
+    from byg_mcp.infra.config import load_config
+
+    h = HydroAdapter(load_config(), None, TTLCache())
+    svar = iter([300.0, 2.15, 300.0, 1.9, None, 300.0, 2.4, 300.0, 3.0])
+
+    async def falsk(lag, x, y):
+        return next(svar)
+
+    monkeypatch.setattr(h, "_vaerdi", falsk)
+    ud = await h.lag_ved_punkt("havvand", 0, 0, 40)
+    assert ud["i_punktet"] is None and ud["laveste_i_radius"] == 1.9
+    assert ud["punkter_uden_forbindelse_til_havet"] == 4

@@ -2,7 +2,7 @@
 
 En MCP-server, der giver sprogmodeller adgang til danske data for arkitekter, ingeniører og bygningskonstruktører.
 
-**Status:** M5 og M4b færdige, se [09-m4b/m4b-notat.md](09-m4b/m4b-notat.md), [08-m5/m5-notat.md](08-m5/m5-notat.md), [07-m4/m4-notat.md](07-m4/m4-notat.md), [06-m3/m3-notat.md](06-m3/m3-notat.md), [05-m2/m2-notat.md](05-m2/m2-notat.md), [04-m1/m1-notat.md](04-m1/m1-notat.md) og [03-m0/m0-notat.md](03-m0/m0-notat.md). Baggrund: [screening](01-screening/screening.md), [filtrering](01-screening/filtrering.md), [arkitektur](02-arkitektur/arkitektur.md).
+**Status:** M6 (klima- og risikodata) tilføjet, se [11-m6/m6-notat.md](11-m6/m6-notat.md). M5 og M4b færdige, se [09-m4b/m4b-notat.md](09-m4b/m4b-notat.md), [08-m5/m5-notat.md](08-m5/m5-notat.md), [07-m4/m4-notat.md](07-m4/m4-notat.md), [06-m3/m3-notat.md](06-m3/m3-notat.md), [05-m2/m2-notat.md](05-m2/m2-notat.md), [04-m1/m1-notat.md](04-m1/m1-notat.md) og [03-m0/m0-notat.md](03-m0/m0-notat.md). Baggrund: [screening](01-screening/screening.md), [filtrering](01-screening/filtrering.md), [arkitektur](02-arkitektur/arkitektur.md).
 
 ## Værktøjer
 
@@ -25,6 +25,9 @@ En MCP-server, der giver sprogmodeller adgang til danske data for arkitekter, in
 | `br18_kapitel` | Oversigt over kapitler, afsnit og paragrafnumre | bygningsreglementet.dk (lokal kopi) | nej |
 | `lov_soeg` / `lov_paragraf` | Gældende love og bekendtgørelser, enkelte paragraffer (byggeloven, planloven, naturbeskyttelsesloven m.fl.) | Retsinformation | nej |
 | `klima_data` | Målt klima for kommunen: temperatur, graddage, nedbør inkl. største 30-min.-regn, vind, sol, sne m.m. | DMI | nej |
+| `klima_fremskrivning` | Klimaatlas for kommunen: nedbør, skybrud, 10- og 100-årshændelser, temperatur, hedebølger, frost. Nær kysten også middelvandstand og stormflod. Lav, mellem og høj udledning, 2011-2100, median og 10-90 % | DMI Klimaatlas (ArcGIS, nøglefri) | nej |
+| `oversvoemmelse` | Havniveau der oversvømmer stedet, sammenholdt med stormflod for kyststrækningen. Regn der fylder lavningen (Bluespot). Terrænnært grundvand | Havvand på Land, Bluespot, HIP, Klimaatlas | ja |
+| `energimaerke` | Energimærker for ejendommen og forbedringsforslag med investering, besparelse, levetid og opnåelig klasse | Energistyrelsen (EMOData) | ja (EMO-adgang) |
 | `sol_og_pv` | Solcelleydelse og indstråling (valgfri eller optimal hældning/orientering, horisont) | PVGIS | nej |
 | `vejrfil` | EPW-vejrfil (TMY) til simulering, link og lokal fil | PVGIS | nej |
 | `el_co2` | CO2 fra el nu og seneste dage (DK1/DK2) + BR18's emissionsfaktorer (tabel 8.1) | Energinet, BR18 | nej |
@@ -43,7 +46,7 @@ Kræver [uv](https://docs.astral.sh/uv/).
 uv sync
 ```
 
-Valgfrit: kopiér `.env.example` til `.env` og indsæt nøgler til Datafordeleren og Dataforsyningen.
+Valgfrit: kopiér `.env.example` til `.env` og indsæt nøgler til Datafordeleren og Dataforsyningen. Til `energimaerke` kræves brugernavn og adgangskode til Energistyrelsens EMOData-service (`EMO_BRUGERNAVN`, `EMO_ADGANGSKODE`).
 
 ## Brug i Claude Code
 
@@ -65,6 +68,10 @@ Tilføj til `claude_desktop_config.json`:
   }
 }
 ```
+
+## Brug i claude.ai (browser og mobil)
+
+Start serveren som HTTP-server med `uv run byg-mcp --http` og gør den tilgængelig via Cloudflare Tunnel. Det kræver `BYG_MCP_HTTP_TOKEN` i `.env`. Se [10-cloudflare/cloudflare-tunnel.md](10-cloudflare/cloudflare-tunnel.md).
 
 ## Test
 

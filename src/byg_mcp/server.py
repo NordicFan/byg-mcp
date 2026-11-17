@@ -20,7 +20,10 @@ from byg_mcp.adapters.geokodning import GsearchAdapter, NominatimAdapter
 from byg_mcp.adapters.miljoe import FortidsmindeAdapter, JordforureningAdapter, StoejAdapter
 from byg_mcp.adapters.geo import GeusAdapter, GrundvandAdapter, HoejdemodelAdapter, KortAdapter
 from byg_mcp.adapters.retsinformation import RetsinformationAdapter
+from byg_mcp.adapters.energimaerke import EmoAdapter, vaelg_gaeldende
 from byg_mcp.adapters.klima import DmiAdapter, EnerginetAdapter, PvgisAdapter
+from byg_mcp.adapters.klimaatlas import AARSTIDER, PERIODER, SCENARIER_KOMMUNE, KlimaatlasAdapter
+from byg_mcp.adapters.oversvoemmelse import HydroAdapter
 from byg_mcp.adapters.lca_bim import BsddAdapter, OekobaudatAdapter
 from byg_mcp.adapters.plandata import PlandataAdapter
 from byg_mcp.domain import bygning as bygning_domain
@@ -36,7 +39,8 @@ INSTRUKTIONER = """\
 Værktøjer til bygningsdesignere (arkitekter, ingeniører, bygningskonstruktører) i Danmark.
 Til regler: `br18_soeg` / `br18_paragraf` (bygningsreglementet, aktuel version) og `lov_paragraf` (øvrige love).
 Til steder: start med `sted_find` (adresse, matrikel eller koordinat) eller `grundrapport`. Den giver koordinater, matrikel, BFE-nummer
-og grundareal. Brug derefter `bygning_bbr`, `plan_gaeldende` og `restriktioner`. Alle svar har en
+og grundareal. Brug derefter `bygning_bbr`, `plan_gaeldende` og `restriktioner`.
+Til klima og risiko: `klima_data` (målt), `klima_fremskrivning` (DMI Klimaatlas), `oversvoemmelse` og `energimaerke`. Alle svar har en
 `kilder`-liste. Angiv altid kilderne i dit svar. Data er grundlag for faglig vurdering, ikke
 myndighedsafgørelser.
 """
@@ -62,6 +66,9 @@ class Adaptere:
     energinet: EnerginetAdapter
     oekobaudat: OekobaudatAdapter
     bsdd: BsddAdapter
+    emo: EmoAdapter
+    klimaatlas: KlimaatlasAdapter
+    hydro: HydroAdapter
 
 
 @asynccontextmanager
@@ -90,6 +97,9 @@ async def lifespan(_server: MCPServer) -> AsyncIterator[Adaptere]:
             energinet=EnerginetAdapter(*args),
             oekobaudat=OekobaudatAdapter(*args),
             bsdd=BsddAdapter(*args),
+            emo=EmoAdapter(*args),
+            klimaatlas=KlimaatlasAdapter(*args),
+            hydro=HydroAdapter(*args),
         )
 
 
@@ -136,6 +146,7 @@ async def kilde_status(ctx: Context) -> dict[str, Any]:
     for navn in (
         "plandata", "arealinfo", "jord", "stoej", "fortidsminder", "dhm", "geus", "grundvand",
         "retsinfo", "dmi", "pvgis", "energinet", "oekobaudat", "bsdd", "gsearch", "nominatim", "datafordeler",
+        "emo", "klimaatlas", "hydro",
     ):
         adapter = getattr(a, navn)
         try:
@@ -812,6 +823,182 @@ async def klima_data(
             "kilder": f["kilder"] + [a.dmi.angivelse("Kommunegennemsnit (interpoleret grid), ikke en enkelt station").dict()]}
 
 
+def _liste(tekst: str, gyldige: dict[str, Any], navn: str) -> list[str]:
+    valgt = list(gyldige) if tekst.strip().lower() == "alle" else [t.strip().lower() for t in tekst.split(",") if t.strip()]
+    ukendte = [t for t in valgt if t not in gyldige]
+    if ukendte or not valgt:
+        raise ValueError(f"Ukendt {navn}: {', '.join(ukendte) or tekst}. Brug {', '.join(gyldige)} eller 'alle'.")
+    return valgt
+
+
+@mcp.tool()
+@brugerfejl
+async def klima_fremskrivning(
+    ctx: Context,
+    adresse: str | None = None,
+    matrikel: str | None = None,
+    x: float | None = None,
+    y: float | None = None,
+    lat: float | None = None,
+    lon: float | None = None,
+    scenarier: str = "mellem",
+    perioder: str = "midt,slut",
+    aarstid: str = "hele_aaret",
+    med_kyst: bool = True,
+    kyst_maks_afstand_m: float = 5000,
+) -> dict[str, Any]:
+    """Klimafremskrivninger fra DMI's Klimaatlas for stedets kommune: nedbør (gennemsnit, skybrud, 10- og
+    100-årshændelser for time- og døgnnedbør), temperatur, hedebølger, frost og frysepunktspassager. Ligger
+    stedet tæt på kysten, også middelvandstand og stormflod (20- og 100-årshændelse) for kyststrækningen.
+
+    `scenarier`: lav, mellem, hoej eller alle (kommune: RCP2,6/4,5/8,5; kyst: SSP1-2,6/2-4,5/5-8,5).
+    `perioder`: start (2011-2040), midt (2041-2070), slut (2071-2100) eller alle.
+    `aarstid`: hele_aaret, vinter, foraar, sommer, efteraar (gælder kommunedata).
+    Hver værdi er median med 10-90 %-interval; reference er 1981-2010. Til dimensionering bruges gældende
+    normer og vejledning om valg af udledningsscenarie.
+    """
+    a = _a(ctx)
+    scen = _liste(scenarier, SCENARIER_KOMMUNE, "scenarie")
+    per = [PERIODER[p] for p in _liste(perioder, PERIODER, "periode")]
+    if aarstid not in AARSTIDER:
+        raise ValueError(f"Ukendt årstid '{aarstid}'. Brug {', '.join(AARSTIDER)}.")
+    f = await _find(a, adresse, matrikel, None, x, y, lat, lon)
+    kode = await _kommunekode(a, f["x"], f["y"])
+    kommune = await a.klimaatlas.kommune(kode, scen, per, AARSTIDER[aarstid])
+    ud: dict[str, Any] = {"sted": {"betegnelse": f["betegnelse"], "x": f["x"], "y": f["y"]}, "kommunekode": kode,
+                          "aarstid": aarstid, "kommune": kommune}
+    if med_kyst:
+        k = await a.klimaatlas.kyststraekning(f["x"], f["y"], kyst_maks_afstand_m)
+        if k:
+            ud["kyst"] = {**k, **await a.klimaatlas.kyst(k["kystkode"], scen, per)}
+        else:
+            ud["kyst"] = {"note": f"Ingen kyststrækning inden for {kyst_maks_afstand_m:.0f} m"}
+    ud["forbehold"] = ("Kommunegennemsnit og kyststrækning, ikke punktværdier. Stormflod er uden bølgebidrag. "
+                       "Klimaatlas siger intet om effekter som grundvand, kloak og lokale forhold.")
+    ud["kilder"] = f["kilder"] + [a.klimaatlas.angivelse(f"Klimaatlas {kommune.get('version') or ''}".strip()).dict()]
+    return ud
+
+
+@mcp.tool()
+@brugerfejl
+async def oversvoemmelse(
+    ctx: Context,
+    adresse: str | None = None,
+    matrikel: str | None = None,
+    x: float | None = None,
+    y: float | None = None,
+    lat: float | None = None,
+    lon: float | None = None,
+    radius_m: float = 15,
+    kyst_maks_afstand_m: float = 5000,
+) -> dict[str, Any]:
+    """Screening for oversvømmelse på stedet: havvand (hvor højt havet skal stige, før stedet oversvømmes,
+    sammenholdt med DMI's stormflodshøjder for kyststrækningen), lavninger ved ekstremregn (Bluespot: hvor
+    meget regn der skal til at fylde lavningen) og terrænnært grundvand.
+
+    `radius_m` (standard 15 m) giver også den laveste værdi i en ring omkring punktet, fx bygningens hjørner.
+    Screening uden kloak, nedsivning og bølger. Erstatter ikke en hydraulisk analyse eller kommunens
+    risikokortlægning.
+    """
+    a = _a(ctx)
+    if not a.hydro.config.dataforsyningen_token:
+        raise ValueError("Oversvømmelsesdata kræver DATAFORSYNINGEN_TOKEN")
+    f = await _find(a, adresse, matrikel, None, x, y, lat, lon)
+    r = max(0.0, min(100.0, radius_m))
+    havvand, bluespot, grundvand, kyst = await asyncio.gather(
+        a.hydro.lag_ved_punkt("havvand", f["x"], f["y"], r),
+        a.hydro.lag_ved_punkt("bluespot", f["x"], f["y"], r),
+        a.grundvand.ved_punkt(f["x"], f["y"]),
+        a.klimaatlas.kyststraekning(f["x"], f["y"], kyst_maks_afstand_m),
+        return_exceptions=True,
+    )
+    noter: list[str] = []
+    ud: dict[str, Any] = {"sted": {"betegnelse": f["betegnelse"], "x": f["x"], "y": f["y"]}, "radius_m": r}
+
+    if isinstance(havvand, Exception):
+        noter.append(f"Havvand på Land: {type(havvand).__name__}: {havvand}")
+    else:
+        taerskel = havvand["laveste_i_radius"]
+        rund = lambda v: None if v is None else round(v, 2)  # noqa: E731
+        hv: dict[str, Any] = {
+            "oversvoemmes_ved_havniveau_m": rund(havvand["i_punktet"]),
+            "laveste_taerskel_i_radius_m": rund(taerskel),
+            "forklaring": "Havniveau over middelvandstand (m, DVR90), der oversvømmer stedet via åben forbindelse til havet. "
+                          "Ingen værdi i punktet betyder, at modellen ikke har en tærskel dér (fx under en bygning eller "
+                          "uden forbindelse til havet); se så den laveste værdi i radius.",
+        }
+        if havvand.get("punkter_uden_forbindelse_til_havet"):
+            hv["punkter_uden_forbindelse_til_havet"] = havvand["punkter_uden_forbindelse_til_havet"]
+        if taerskel is not None and not isinstance(kyst, Exception) and kyst:
+            try:
+                storm = await a.klimaatlas.stormflod_m(kyst["kystkode"])
+                hv["kyststraekning"] = kyst
+                hv["stormflod_der_naar_stedet"] = [s for s in storm if s["hoejde_m"] >= taerskel]
+                hv["stormflod_alle"] = storm
+            except Exception as e:  # noqa: BLE001 - delvise svar frem for fejl
+                noter.append(f"Klimaatlas stormflod: {e}")
+        ud["havvand"] = hv
+    if isinstance(bluespot, Exception):
+        noter.append(f"Bluespot: {type(bluespot).__name__}: {bluespot}")
+    else:
+        mm = lambda v: None if v is None else round(v * 1000)  # noqa: E731 - meter regn → mm
+        ud["ekstremregn_bluespot"] = {
+            "regn_til_at_fylde_lavning_mm": mm(bluespot["i_punktet"]),
+            "laveste_i_radius_mm": mm(bluespot["laveste_i_radius"]),
+            "forklaring": "Regnmængde, der skal til at fylde terrænlavningen, uden kloak og nedsivning. "
+                          "Ingen værdi betyder, at punktet ikke ligger i en lavning.",
+        }
+    ud["terraennaert_grundvand"] = (
+        {"note": f"{type(grundvand).__name__}: {grundvand}"} if isinstance(grundvand, Exception) else grundvand
+    )
+    if noter:
+        ud["noter"] = noter
+    ud["forbehold"] = "Screening. Erstatter ikke hydraulisk analyse, kommunens risikokortlægning eller forsikringsvurdering."
+    ud["kilder"] = f["kilder"] + [a.hydro.angivelse().dict(), a.grundvand.angivelse().dict(), a.klimaatlas.angivelse().dict()]
+    return ud
+
+
+@mcp.tool()
+@brugerfejl
+async def energimaerke(
+    ctx: Context,
+    adresse: str | None = None,
+    matrikel: str | None = None,
+    bfe_nummer: int | None = None,
+    x: float | None = None,
+    y: float | None = None,
+    lat: float | None = None,
+    lon: float | None = None,
+    med_forslag: bool = True,
+) -> dict[str, Any]:
+    """Energimærker for ejendommen fra Energistyrelsen: klasse, gyldighed, grundlag og bygninger, samt for det
+    gældende mærke forbedringsforslagene med investering, årlig besparelse, levetid og om de er rentable, og den
+    klasse bygningen kan opnå. Kræver adgang til EMOData (EMO_BRUGERNAVN og EMO_ADGANGSKODE).
+    """
+    a = _a(ctx)
+    if not a.emo.aktiv:
+        raise ValueError("Energimærker kræver adgang til Energistyrelsens EMOData-service. Sæt EMO_BRUGERNAVN og "
+                         "EMO_ADGANGSKODE i .env. Adgang fås ved henvendelse til Energistyrelsen.")
+    f = await _find(a, adresse, matrikel, bfe_nummer, x, y, lat, lon)
+    bfe = bfe_nummer or (f.get("ejendom") or {}).get("bfe_nummer")
+    maerker = await a.emo.maerker_for_bfe(bfe) if bfe else []
+    grundlag = "BFE-nummer"
+    if not maerker:
+        s = Sted.fra_utm(f["x"], f["y"])
+        maerker = await a.emo.maerker_ved_koordinat(s.lat, s.lon)
+        grundlag = "koordinat (ingen mærker fundet på BFE-nummer)"
+    gaeldende = vaelg_gaeldende(maerker)
+    ud: dict[str, Any] = {"sted": {"betegnelse": f["betegnelse"], "bfe_nummer": bfe}, "soegt_paa": grundlag,
+                          "antal_maerker": len(maerker), "gaeldende": gaeldende,
+                          "oevrige": [m for m in maerker if m is not gaeldende]}
+    if med_forslag and gaeldende and gaeldende.get("nummer"):
+        ud["forbedringer"] = await a.emo.forbedringer(gaeldende["nummer"])
+    if not maerker:
+        ud["note"] = "Ingen energimærker fundet. Mange bygninger er ikke energimærket (fx fredede eller små bygninger)."
+    ud["kilder"] = f["kilder"] + [a.emo.angivelse().dict()]
+    return ud
+
+
 @mcp.tool()
 @brugerfejl
 async def sol_og_pv(
@@ -1240,8 +1427,63 @@ Angiv kilde for hvert faktum. Skeln tydeligt mellem data fra registrene og din e
 """
 
 
+def _http_app(token: str, stateless: bool = False):
+    """Streamable HTTP-app, hvor MCP-endpointet ligger på en hemmelig sti (/mcp/<token>).
+
+    claude.ai's custom connectors kan ikke sende en fast Bearer-header, så den hemmelige sti er
+    adgangskontrollen. Alle andre stier giver 404. Host-tjekket (DNS rebinding) er slået fra, fordi
+    serveren kun lytter på localhost bag en tunnel med skiftende værtsnavn, og et angreb alligevel
+    skulle kende stien.
+
+    `stateless=True` bruges i containeren hos Cloudflare: den sover, når den ikke bruges, så sessioner
+    i hukommelsen ville gå tabt. Uden tilstand kan hvert kald stå alene.
+    """
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    return mcp.streamable_http_app(
+        streamable_http_path=f"/mcp/{token}",
+        stateless_http=stateless,
+        json_response=stateless,
+        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    )
+
+
 def main() -> None:
-    mcp.run()
+    import argparse
+    import os
+
+    p = argparse.ArgumentParser(prog="byg-mcp", description="MCP-server med danske data for bygningsdesign.")
+    p.add_argument("--http", action="store_true", help="Kør som HTTP-server (til tunnel/claude.ai) i stedet for stdio")
+    p.add_argument("--port", type=int, default=int(os.environ.get("BYG_MCP_PORT", "8765")))
+    p.add_argument("--host", default=os.environ.get("BYG_MCP_HOST", "127.0.0.1"),
+                   help="Adresse at lytte på. 127.0.0.1 bag en tunnel, 0.0.0.0 i en container")
+    p.add_argument("--stateless", action="store_true",
+                   default=os.environ.get("BYG_MCP_STATELESS", "") == "1",
+                   help="Uden sessioner (til containere, der kan sove mellem kald)")
+    args = p.parse_args()
+
+    if not args.http:
+        mcp.run()
+        return
+
+    import secrets
+
+    import uvicorn
+
+    from byg_mcp.infra.config import _load_dotenv
+
+    _load_dotenv()
+    token = os.environ.get("BYG_MCP_HTTP_TOKEN", "").strip()
+    if len(token) < 32:
+        raise SystemExit(
+            "BYG_MCP_HTTP_TOKEN mangler eller er for kort (mindst 32 tegn). Tilføj en linje i .env, fx:\n"
+            f"BYG_MCP_HTTP_TOKEN={secrets.token_urlsafe(32)}"
+        )
+    print(f"byg-mcp lytter på http://{args.host}:{args.port}/mcp/<BYG_MCP_HTTP_TOKEN>"
+          + (" (uden sessioner)" if args.stateless else ""), flush=True)
+    # access_log=False: stien indeholder hemmeligheden og må ikke logges.
+    uvicorn.run(_http_app(token, args.stateless), host=args.host, port=args.port,
+                access_log=False, log_level="warning")
 
 
 if __name__ == "__main__":

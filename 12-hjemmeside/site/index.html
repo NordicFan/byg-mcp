@@ -1,0 +1,1852 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>byg-mcp</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Åben MCP-server, der giver Claude adgang til danske registre, planer, regler og klimadata til bygningsdesign.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400;62..125,600;62..125,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: et natkort over en dansk havnefront. Terrænkurverne lever i baggrunden, havet kan hæves,
+   og hver sektion er et nyt lag på samme kort. Mørk version med vilje (enkelt tema). */
+:root {
+  --bg: #080d0b;            /* natkort */
+  --bg-2: #0d1411;
+  --panel: #111a16;
+  --panel-2: #16211c;
+  --line: #22302a;
+  --line-2: #2f3f37;
+  --ink: #e9f0eb;
+  --ink-soft: #9badA3;
+  --ink-faint: #64766c;
+  --matrikel: #ff7a3d;      /* primær accent: matrikelskel */
+  --matrikel-glow: rgba(255, 122, 61, 0.35);
+  --kote: #59d2ff;          /* vand og koter */
+  --kote-glow: rgba(89, 210, 255, 0.28);
+  --plan: #b18cff;          /* lokalplan */
+  --ok: #7ee2a0;            /* status */
+  --display: "Archivo", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: clamp(1.9rem, 1.2rem + 2.6vw, 3rem);
+  --step-4: clamp(2.6rem, 1.3rem + 5.4vw, 5.6rem);
+  --max: 1200px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--body); font-size: var(--step-0); line-height: 1.6;
+  -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+.wrap {
+  max-width: var(--max); margin-inline: auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+a { color: var(--kote); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--matrikel); outline-offset: 3px; border-radius: 4px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); }
+.eyebrow {
+  font-family: var(--mono); font-size: var(--step--1); text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--ink-soft); display: inline-flex; align-items: center; gap: 10px;
+}
+.eyebrow::before { content: ""; width: 18px; height: 2px; background: var(--matrikel); }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Topbar */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.announce { background: var(--bg-2); border-bottom: 1px solid var(--line); font-size: 0.86rem; }
+.announce .wrap { display: flex; justify-content: center; gap: 10px; padding-block: 8px; flex-wrap: wrap; text-align: center; }
+.announce b { color: var(--matrikel); font-weight: 600; font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.06em; }
+.announce a { color: var(--ink); text-decoration: none; }
+.announce a:hover { color: var(--matrikel); }
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background: rgba(8, 13, 11, 0.72); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line);
+}
+.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.brand svg { width: 26px; height: 26px; }
+.brand b { font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 1.4rem; }
+.nav { display: flex; gap: 22px; align-items: center; }
+.nav a { color: var(--ink-soft); text-decoration: none; font-size: 0.94rem; }
+.nav a:hover { color: var(--ink); }
+.nav .btn { padding: 8px 14px; }
+@media (max-width: 760px) { .nav a.hide-sm { display: none; } }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 8px;
+  font-weight: 600; text-decoration: none; font-size: 0.98rem; border: 1px solid transparent; cursor: pointer;
+  font-family: var(--body); transition: transform .15s ease, box-shadow .2s ease, background .2s ease;
+}
+.btn-primary { background: var(--matrikel); color: #1a0b03; box-shadow: 0 0 0 0 var(--matrikel-glow); }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 30px -6px var(--matrikel-glow); }
+.btn-ghost { background: rgba(255,255,255,0.03); color: var(--ink); border-color: var(--line-2); }
+.btn-ghost:hover { border-color: var(--ink-soft); }
+
+/* Hero */
+.hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
+.hero canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.hero::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 70% 80% at 22% 45%, rgba(8,13,11,0.92) 0%, rgba(8,13,11,0.6) 45%, rgba(8,13,11,0) 80%);
+}
+.hero .wrap {
+  position: relative; z-index: 2; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 40px; align-items: end; padding-block: 88px 64px; pointer-events: none;
+}
+.hero .wrap > * { pointer-events: auto; }
+@media (max-width: 920px) { .hero .wrap { grid-template-columns: minmax(0, 1fr); padding-block: 56px 40px; } }
+.hero h1 {
+  font-size: var(--step-4); font-stretch: 68%; font-weight: 800; line-height: 0.95;
+  text-transform: uppercase; margin-top: 18px;
+}
+.hero h1 .o { color: var(--matrikel); text-shadow: 0 0 40px var(--matrikel-glow); }
+.hero h1 .k { color: var(--kote); text-shadow: 0 0 40px var(--kote-glow); }
+.lede { margin-top: 24px; font-size: var(--step-1); color: var(--ink-soft); max-width: 33em; }
+.lede b { color: var(--ink); font-weight: 500; }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 32px; }
+.works { margin-top: 22px; font-family: var(--mono); font-size: 0.78rem; color: var(--ink-faint); display: flex; gap: 8px 18px; flex-wrap: wrap; }
+.works span::before { content: "● "; color: var(--ok); }
+
+/* Havniveau-panel */
+.sea {
+  background: rgba(13, 20, 17, 0.82); backdrop-filter: blur(10px); border: 1px solid var(--line-2);
+  border-radius: 12px; padding: 18px 18px 16px; display: grid; gap: 12px; min-width: 0;
+  box-shadow: 0 20px 60px -20px rgba(0,0,0,0.7);
+}
+.sea-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.sea-head .lbl { font-family: var(--mono); font-size: 0.74rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.08em; }
+.sea-val { font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 2.2rem; line-height: 1; color: var(--kote); font-variant-numeric: tabular-nums; }
+.sea-val small { font-family: var(--mono); font-size: 0.8rem; color: var(--ink-soft); font-weight: 400; margin-left: 4px; }
+input[type="range"] { width: 100%; accent-color: var(--kote); margin: 0; }
+.marks { position: relative; height: 34px; font-family: var(--mono); font-size: 0.66rem; color: var(--ink-soft); }
+.marks button {
+  position: absolute; top: 0; transform: translateX(-50%); background: none; border: 0; color: inherit;
+  font: inherit; cursor: pointer; padding: 0 2px; text-align: center; line-height: 1.25; white-space: nowrap;
+}
+.marks button::before { content: ""; display: block; width: 1px; height: 6px; background: var(--ink-faint); margin: 0 auto 3px; }
+.marks button:hover, .marks button.on { color: var(--kote); }
+.readout { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border-radius: 6px; overflow: hidden; }
+.readout div { background: var(--panel); padding: 8px 10px; min-width: 0; }
+.readout span { display: block; font-family: var(--mono); font-size: 0.64rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; }
+.readout b { display: block; font-family: var(--mono); font-weight: 500; font-size: 0.82rem; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sea-note { font-size: 0.82rem; color: var(--ink-soft); min-height: 2.6em; }
+.sea-note b { color: var(--kote); font-weight: 500; }
+
+/* Sektioner */
+section.block .wrap { padding-block: 104px; }
+@media (max-width: 720px) { section.block .wrap { padding-block: 64px; } }
+.sec-head { display: grid; gap: 16px; max-width: 760px; margin-bottom: 48px; }
+.sec-head h2 { font-size: var(--step-3); font-stretch: 75%; font-weight: 800; line-height: 1.02; }
+.sec-head p { color: var(--ink-soft); font-size: var(--step-1); }
+
+/* Agent-demo */
+.demo { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 920px) { .demo { grid-template-columns: minmax(0, 1fr); } }
+.scen { display: grid; gap: 10px; }
+@media (max-width: 920px) { .scen { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .scen { grid-template-columns: minmax(0, 1fr); } }
+.scen button {
+  text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
+  color: var(--ink); cursor: pointer; display: grid; gap: 4px; font-family: var(--body); transition: border-color .2s, background .2s;
+}
+.scen button span { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; }
+.scen button b { font-weight: 600; font-size: 1rem; }
+.scen button small { color: var(--ink-soft); font-size: 0.86rem; line-height: 1.4; }
+.scen button:hover { border-color: var(--line-2); }
+.scen button[aria-selected="true"] { border-color: var(--matrikel); background: var(--panel-2); box-shadow: 0 0 0 1px var(--matrikel-glow), 0 10px 40px -18px var(--matrikel-glow); }
+
+.window {
+  background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; overflow: hidden; min-width: 0;
+  box-shadow: 0 40px 100px -40px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.02) inset;
+}
+.win-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--bg-2); }
+.win-bar .dots { display: flex; gap: 6px; }
+.win-bar .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-2); display: block; }
+.win-bar .conn { font-family: var(--mono); font-size: 0.74rem; color: var(--ink-soft); display: flex; align-items: center; gap: 8px; }
+.win-bar .conn::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+.replay { background: none; border: 1px solid var(--line-2); color: var(--ink-soft); font: 500 0.72rem var(--mono); padding: 4px 10px; border-radius: 5px; cursor: pointer; }
+.replay:hover { color: var(--ink); border-color: var(--ink-soft); }
+.chat { padding: 22px; display: grid; gap: 16px; min-height: 520px; align-content: start; }
+.msg-user { justify-self: end; max-width: 85%; background: var(--panel-2); border: 1px solid var(--line-2); padding: 12px 16px; border-radius: 12px 12px 4px 12px; }
+.calls { display: grid; gap: 8px; }
+.call {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: start;
+  font-family: var(--mono); font-size: 0.8rem; background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+  transition: opacity .25s ease, transform .25s ease;
+}
+.call.hidden { opacity: 0; transform: translateY(6px); }
+.call .ic { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px; }
+.call .ic.run { border: 2px solid var(--line-2); border-top-color: var(--matrikel); animation: spin .8s linear infinite; }
+.call .ic.ok { background: rgba(126,226,160,0.14); color: var(--ok); font-size: 0.7rem; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.call .nm { color: var(--matrikel); font-weight: 500; }
+.call .args { color: var(--ink-faint); word-break: break-word; }
+.call .res { color: var(--ink-soft); margin-top: 4px; font-family: var(--body); font-size: 0.86rem; line-height: 1.45; }
+.call .ms { color: var(--ink-faint); font-size: 0.72rem; white-space: nowrap; }
+.answer { line-height: 1.65; color: var(--ink); display: grid; gap: 10px; }
+.answer p { min-height: 0; }
+.answer b { color: var(--kote); font-weight: 600; }
+.cites { display: flex; flex-wrap: wrap; gap: 6px; }
+.cite { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-soft); border: 1px solid var(--line-2); border-radius: 999px; padding: 3px 10px; text-decoration: none; }
+.cite:hover { color: var(--ink); border-color: var(--kote); }
+.caret { display: inline-block; width: 8px; height: 1.05em; background: var(--matrikel); vertical-align: -2px; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.demo-foot { margin-top: 14px; font-family: var(--mono); font-size: 0.74rem; color: var(--ink-faint); }
+
+/* Tal */
+.figs { border-block: 1px solid var(--line); background: var(--bg-2); }
+.figs .wrap { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.fig { padding: 30px 18px 28px; border-right: 1px solid var(--line); min-width: 0; }
+.fig:first-child { padding-left: 0; }
+.fig:last-child { border-right: 0; }
+.fig b { display: block; font-family: var(--display); font-stretch: 70%; font-weight: 800; font-size: var(--step-3); line-height: 1; font-variant-numeric: tabular-nums; }
+.fig span { display: block; margin-top: 10px; color: var(--ink-soft); font-size: 0.92rem; }
+@media (max-width: 860px) {
+  .figs .wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fig, .fig:first-child { padding-left: 0; border-bottom: 1px solid var(--line); }
+  .fig:nth-child(2n) { border-right: 0; padding-left: 18px; }
+  .fig:last-child { grid-column: 1 / -1; border-bottom: 0; }
+}
+
+/* Lag-udforsker */
+.explorer { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px; align-items: stretch; }
+@media (max-width: 920px) { .explorer { grid-template-columns: minmax(0, 1fr); } }
+.map { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 14px; padding: 12px; min-width: 0; position: relative; }
+.map svg { display: block; width: 100%; height: auto; }
+.map .tb { display: flex; justify-content: space-between; gap: 10px; font-family: var(--mono); font-size: 0.68rem; color: var(--ink-faint); padding: 8px 4px 0; flex-wrap: wrap; }
+.lyr { transition: opacity .3s ease, filter .3s ease; }
+.map.focus .lyr { opacity: 0.18; }
+.map.focus .lyr.on { opacity: 1; filter: drop-shadow(0 0 6px currentColor); }
+.side { display: grid; gap: 14px; align-content: start; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink);
+  border-radius: 999px; padding: 7px 13px; font: 500 0.86rem var(--body); cursor: pointer; transition: border-color .2s, background .2s;
+}
+.chip i { width: 10px; height: 10px; border-radius: 2px; display: block; }
+.chip:hover { border-color: var(--ink-soft); }
+.chip[aria-pressed="true"] { background: var(--panel-2); border-color: var(--ink); }
+.info { background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; padding: 20px; display: grid; gap: 12px; min-width: 0; }
+.info .tool { font-family: var(--mono); color: var(--matrikel); font-size: 0.86rem; }
+.info h3 { font-size: var(--step-2); font-stretch: 78%; font-weight: 800; }
+.info p { color: var(--ink-soft); }
+.info pre {
+  margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto;
+  font-family: var(--mono); font-size: 0.76rem; line-height: 1.6; color: var(--ink-soft);
+}
+.info pre .k { color: var(--kote); }
+.info pre .s { color: var(--ok); }
+.info pre .n { color: var(--matrikel); }
+
+/* Katalog */
+.cat-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 22px; }
+.search {
+  flex: 1 1 260px; display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line-2);
+  border-radius: 10px; padding: 0 14px; min-width: 0;
+}
+.search:focus-within { border-color: var(--matrikel); }
+.search svg { width: 16px; height: 16px; color: var(--ink-faint); flex: none; }
+.search input { flex: 1; min-width: 0; background: none; border: 0; color: var(--ink); font: 1rem var(--body); padding: 12px 0; outline: none; }
+.search input::placeholder { color: var(--ink-faint); }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.filters button { background: none; border: 1px solid var(--line-2); color: var(--ink-soft); border-radius: 999px; padding: 6px 12px; font: 500 0.8rem var(--body); cursor: pointer; }
+.filters button[aria-pressed="true"] { color: var(--bg); background: var(--ink); border-color: var(--ink); }
+.grid-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 960px) { .grid-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .grid-tools { grid-template-columns: minmax(0, 1fr); } }
+.tcard {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 16px 18px; display: grid; gap: 8px;
+  align-content: start; min-width: 0; transition: border-color .2s, transform .2s;
+}
+.tcard:hover { border-color: var(--line-2); transform: translateY(-2px); }
+.tcard .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.tcard code { color: var(--ink); font-size: 0.88rem; font-weight: 500; overflow-wrap: anywhere; }
+.tcard .grp { font-family: var(--mono); font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.tcard p { color: var(--ink-soft); font-size: 0.9rem; line-height: 1.5; }
+.tcard .new { color: var(--matrikel); font-family: var(--mono); font-size: 0.66rem; margin-left: 6px; }
+.empty { color: var(--ink-soft); padding: 24px 0; }
+.count { font-family: var(--mono); font-size: 0.78rem; color: var(--ink-faint); margin-top: 16px; }
+
+/* Kilde-bånd */
+.ticker { border-block: 1px solid var(--line); overflow: hidden; background: var(--bg-2); }
+.ticker-track { display: flex; width: max-content; animation: tick 60s linear infinite; }
+.ticker:hover .ticker-track { animation-play-state: paused; }
+.ticker-track span { font-family: var(--display); font-stretch: 70%; font-weight: 600; font-size: 1.5rem; color: var(--ink-faint); padding: 22px 28px; white-space: nowrap; }
+.ticker-track span::after { content: "◆"; font-size: 0.6rem; color: var(--matrikel); margin-left: 56px; vertical-align: 4px; }
+@keyframes tick { to { transform: translateX(-50%); } }
+
+/* Kom i gang */
+.setup { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 32px; align-items: start; }
+@media (max-width: 920px) { .setup { grid-template-columns: minmax(0, 1fr); } }
+.steps { display: grid; gap: 0; border-top: 1px solid var(--line); }
+.steps li { list-style: none; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.steps ol { margin: 0; padding: 0; }
+.steps .n { font-family: var(--display); font-stretch: 68%; font-weight: 800; font-size: 2rem; line-height: 1; color: var(--matrikel); }
+.steps b { display: block; font-weight: 600; margin-bottom: 4px; }
+.steps p { color: var(--ink-soft); font-size: 0.95rem; }
+.tabs { background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; overflow: hidden; min-width: 0; }
+.tablist { display: flex; border-bottom: 1px solid var(--line); background: var(--bg-2); overflow-x: auto; }
+.tablist button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--ink-soft); font: 500 0.88rem var(--body); padding: 14px 18px; cursor: pointer; white-space: nowrap; }
+.tablist button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--matrikel); }
+.tabpanel { padding: 18px; display: grid; gap: 12px; }
+.tabpanel p { color: var(--ink-soft); font-size: 0.94rem; }
+.codebox { position: relative; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.codebox pre { margin: 0; padding: 14px 16px; padding-right: 76px; overflow-x: auto; font-family: var(--mono); font-size: 0.8rem; line-height: 1.6; color: var(--ink); }
+.codebox pre .c { color: var(--ink-faint); }
+.copy { position: absolute; top: 8px; right: 8px; font: 500 0.72rem var(--mono); padding: 5px 10px; border: 1px solid var(--line-2); background: var(--panel); color: var(--ink); border-radius: 5px; cursor: pointer; }
+.copy:hover { border-color: var(--ink-soft); }
+
+/* Principper */
+.principles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 920px) { .principles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .principles { grid-template-columns: minmax(0, 1fr); } }
+.pr { border-top: 2px solid var(--line-2); padding-top: 16px; display: grid; gap: 8px; align-content: start; }
+.pr:first-child { border-top-color: var(--matrikel); }
+.pr h3 { font-size: 1.15rem; font-stretch: 80%; font-weight: 800; }
+.pr p { color: var(--ink-soft); font-size: 0.94rem; }
+
+/* Afslutning */
+.final { position: relative; overflow: hidden; border-top: 1px solid var(--line); }
+.final .wrap { position: relative; z-index: 2; padding-block: 112px; text-align: left; display: grid; gap: 24px; }
+.final h2 { font-size: var(--step-4); font-stretch: 66%; font-weight: 800; line-height: 0.95; text-transform: uppercase; max-width: 14ch; }
+.final h2 span { color: var(--matrikel); }
+.final p { color: var(--ink-soft); font-size: var(--step-1); max-width: 36em; }
+.final svg.bg { position: absolute; right: -80px; top: 50%; transform: translateY(-50%); width: 760px; max-width: none; opacity: 0.5; pointer-events: none; }
+@media (max-width: 760px) { .final svg.bg { opacity: 0.22; } }
+
+/* Visninger */
+[data-view][hidden] { display: none !important; }
+.nav a[aria-current="page"] { color: var(--ink); }
+.page-hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
+.page-hero .wrap { position: relative; z-index: 2; padding-block: 88px 56px; display: grid; gap: 18px; }
+.page-hero h1 { font-size: clamp(2.4rem, 1.3rem + 4.4vw, 4.6rem); font-stretch: 68%; font-weight: 800; line-height: 0.96; text-transform: uppercase; max-width: 16ch; }
+.page-hero h1 span { color: var(--matrikel); }
+.page-hero .lede { margin-top: 0; }
+.page-hero svg.contours { position: absolute; right: -120px; top: 0; height: 100%; width: auto; opacity: 0.45; pointer-events: none; }
+@media (max-width: 760px) { .page-hero svg.contours { opacity: 0.18; } }
+
+/* API */
+.api { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 32px; align-items: start; }
+@media (max-width: 920px) { .api { grid-template-columns: minmax(0, 1fr); } }
+.spec { display: grid; border-top: 1px solid var(--line); }
+.spec div { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+@media (max-width: 480px) { .spec div { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+.spec dt { font-family: var(--mono); font-size: 0.74rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; padding-top: 3px; }
+.spec dd { margin: 0; color: var(--ink-soft); font-size: 0.95rem; }
+.spec dd code { color: var(--ink); background: var(--panel); border: 1px solid var(--line); padding: 1px 6px; border-radius: 4px; font-size: 0.82rem; }
+.spec dd b { color: var(--ink); font-weight: 500; }
+
+/* Inspiration */
+.insp-bar { display: grid; gap: 14px; margin-bottom: 28px; }
+.insp-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.insp-row .lbl { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; min-width: 54px; }
+.insp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 1000px) { .insp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .insp-grid { grid-template-columns: minmax(0, 1fr); } }
+.uc {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 12px;
+  grid-template-rows: auto auto auto 1fr auto; min-width: 0; transition: border-color .2s, transform .2s;
+}
+.uc:hover { border-color: var(--line-2); transform: translateY(-2px); }
+.uc .meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.uc .meta span { font-family: var(--mono); font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-soft); border: 1px solid var(--line-2); border-radius: 999px; padding: 2px 8px; }
+.uc .meta span.ph { color: var(--matrikel); border-color: rgba(255,122,61,0.4); }
+.uc h3 { font-size: 1.25rem; font-stretch: 80%; font-weight: 800; line-height: 1.15; }
+.uc > p { color: var(--ink-soft); font-size: 0.92rem; line-height: 1.5; }
+.uc .prompt { position: relative; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px 40px; font-size: 0.9rem; line-height: 1.5; color: var(--ink); align-self: start; }
+.uc .prompt mark { background: rgba(255,122,61,0.16); color: var(--matrikel); border-radius: 3px; padding: 0 3px; }
+.uc .prompt .copy { top: auto; bottom: 8px; right: 8px; }
+.uc .tl { display: flex; flex-wrap: wrap; gap: 5px; }
+.uc .tl code { font-size: 0.72rem; color: var(--kote); background: rgba(89,210,255,0.08); border-radius: 4px; padding: 2px 6px; }
+.flows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 56px; }
+@media (max-width: 900px) { .flows { grid-template-columns: minmax(0, 1fr); } }
+.flow { border: 1px solid var(--line-2); border-radius: 12px; padding: 20px; background: linear-gradient(180deg, var(--panel-2), var(--panel)); display: grid; gap: 12px; align-content: start; min-width: 0; }
+.flow h3 { font-size: 1.35rem; font-stretch: 78%; font-weight: 800; }
+.flow p { color: var(--ink-soft); font-size: 0.94rem; }
+.flow ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 0; }
+.flow li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 0.9rem; color: var(--ink-soft); }
+.flow li span { font-family: var(--mono); color: var(--matrikel); font-size: 0.8rem; }
+.flow li code { color: var(--ink); font-size: 0.8rem; }
+
+/* Om */
+.about { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 32px; align-items: start; }
+@media (max-width: 920px) { .about { grid-template-columns: minmax(0, 1fr); } }
+.person { background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; padding: 24px; display: grid; gap: 16px; min-width: 0; }
+.person .avatar { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 30% 30%, var(--matrikel), #8a3410); font-family: var(--display); font-stretch: 70%; font-weight: 800; font-size: 1.5rem; color: #1a0b03; }
+.person h2 { font-size: var(--step-2); font-stretch: 78%; font-weight: 800; }
+.person .role { color: var(--ink-soft); }
+.person .award { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 0.76rem; color: var(--matrikel); border: 1px solid rgba(255,122,61,0.4); border-radius: 999px; padding: 4px 12px; justify-self: start; }
+.kw { display: flex; flex-wrap: wrap; gap: 6px; }
+.kw span { font-size: 0.8rem; color: var(--ink-soft); background: var(--bg-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+.links { display: flex; flex-wrap: wrap; gap: 10px; }
+.facts { display: grid; border-top: 1px solid var(--line); }
+.facts div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
+.facts dt { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; padding-top: 3px; }
+.facts dd { margin: 0; color: var(--ink-soft); }
+.story { display: grid; gap: 18px; color: var(--ink-soft); font-size: 1.04rem; }
+.story h3 { color: var(--ink); font-size: var(--step-2); font-stretch: 78%; font-weight: 800; }
+.related { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 760px) { .related { grid-template-columns: minmax(0, 1fr); } }
+.rel { display: grid; gap: 10px; align-content: start; text-decoration: none; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; transition: border-color .2s, transform .2s; min-width: 0; }
+.rel:hover { border-color: var(--kote); transform: translateY(-2px); }
+.rel .eyebrow::before { background: var(--kote); }
+.rel h3 { font-size: 1.4rem; font-stretch: 78%; font-weight: 800; }
+.rel p { color: var(--ink-soft); font-size: 0.94rem; }
+.rel .go { font-family: var(--mono); font-size: 0.78rem; color: var(--kote); }
+.rel .nums { display: flex; gap: 22px; flex-wrap: wrap; }
+.rel .nums b { display: block; font-family: var(--display); font-stretch: 70%; font-weight: 800; font-size: 1.9rem; line-height: 1; color: var(--ink); }
+.rel .nums span { font-size: 0.78rem; color: var(--ink-faint); }
+.contact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 24px; align-items: start; }
+@media (max-width: 920px) { .contact { grid-template-columns: minmax(0, 1fr); } }
+.ways { display: grid; gap: 10px; }
+.way { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.way .n { font-family: var(--display); font-stretch: 68%; font-weight: 800; font-size: 1.6rem; color: var(--matrikel); line-height: 1; }
+.way b { display: block; font-weight: 600; }
+.way p { color: var(--ink-soft); font-size: 0.92rem; }
+.cform { background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; padding: 22px; display: grid; gap: 14px; min-width: 0; }
+.cform .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 520px) { .cform .two { grid-template-columns: minmax(0, 1fr); } }
+.field { display: grid; gap: 6px; min-width: 0; }
+.field label { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.08em; }
+.field input, .field select, .field textarea {
+  width: 100%; background: var(--bg); border: 1px solid var(--line-2); border-radius: 8px; color: var(--ink);
+  font: 0.98rem var(--body); padding: 11px 12px; min-width: 0;
+}
+.field textarea { min-height: 120px; resize: vertical; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--matrikel); }
+.direct { display: grid; gap: 10px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.direct .line { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.direct .line span { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; }
+.direct .line b { font-family: var(--mono); font-weight: 500; color: var(--ink); user-select: all; }
+.direct .copy { position: static; }
+.cstatus { font-size: 0.9rem; color: var(--ok); min-height: 1.4em; }
+
+/* Split-hero på undersider */
+.split { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 40px; align-items: center; }
+@media (max-width: 920px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.split > div { display: grid; gap: 18px; min-width: 0; }
+
+/* Orkestrering (inspiration) */
+.orch { position: relative; width: 100%; max-width: 480px; justify-self: center; display: grid; gap: 12px; min-width: 0; }
+.orch svg { width: 100%; height: auto; display: block; overflow: visible; }
+.orch .edge { stroke: #22302a; stroke-width: 1; fill: none; transition: stroke .4s; }
+.orch .edge.on { stroke: var(--matrikel); stroke-width: 1.6; stroke-dasharray: 4 6; animation: flow 0.9s linear infinite; }
+@keyframes flow { to { stroke-dashoffset: -20; } }
+.orch .node { fill: #2f3f37; transition: fill .3s, r .3s; }
+.orch .node.on { fill: var(--matrikel); }
+.orch .halo { fill: none; stroke: var(--matrikel); opacity: 0; }
+.orch .halo.on { animation: halo 1.6s ease-out infinite; }
+@keyframes halo { 0% { opacity: .8; r: 5; } 100% { opacity: 0; r: 18; } }
+.orch .lbl { font-family: var(--mono); font-size: 10px; fill: var(--ink-soft); opacity: 0; transition: opacity .3s; }
+.orch .lbl.on { opacity: 1; fill: var(--ink); }
+.orch .core { fill: var(--panel-2); stroke: var(--matrikel); stroke-width: 1.5; }
+.orch .core-ring { fill: none; stroke: var(--matrikel); opacity: .35; animation: breathe 3s ease-in-out infinite; transform-origin: 200px 200px; }
+@keyframes breathe { 50% { transform: scale(1.12); opacity: .1; } }
+.orch .core-t { font-family: var(--display); font-stretch: 70%; font-weight: 800; font-size: 18px; fill: var(--ink); text-anchor: middle; }
+.orch .ring-c { fill: none; stroke: #1c2621; }
+.qbar { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; background: rgba(13,20,17,0.85); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px 14px; min-height: 68px; font-size: 0.92rem; }
+.qbar .who { font-family: var(--mono); font-size: 0.7rem; color: var(--matrikel); text-transform: uppercase; letter-spacing: 0.08em; padding-top: 2px; }
+.qbar .txt { color: var(--ink); }
+
+/* Portræt med terrænringe (om) */
+.portrait { position: relative; width: 100%; max-width: 460px; aspect-ratio: 1 / 1; justify-self: center; }
+.portrait canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.portrait .ph {
+  position: absolute; left: 50%; top: 50%; width: 52%; aspect-ratio: 1 / 1; transform: translate(-50%, -50%);
+  border-radius: 50%; overflow: hidden; border: 2px solid var(--matrikel);
+  box-shadow: 0 0 0 8px rgba(255,122,61,0.08), 0 0 60px -10px var(--matrikel-glow);
+}
+.portrait .ph img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(0.92) contrast(1.03); }
+.portrait .tag {
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); white-space: nowrap;
+  font-family: var(--mono); font-size: 0.72rem; color: var(--ink); background: rgba(13,20,17,0.9);
+  border: 1px solid var(--line-2); border-radius: 999px; padding: 4px 10px; pointer-events: none;
+}
+.portrait .tag i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.hero-links { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Forskning */
+.strands { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 860px) { .strands { grid-template-columns: minmax(0, 1fr); } }
+.strand { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 12px; align-content: start; overflow: hidden; min-width: 0; }
+.strand::before { content: ""; position: absolute; left: 0; top: 0; height: 2px; width: 100%; background: linear-gradient(90deg, var(--c, var(--matrikel)), transparent 70%); }
+.strand .yr { font-family: var(--mono); font-size: 0.74rem; color: var(--c, var(--matrikel)); letter-spacing: 0.06em; }
+.strand h3 { font-size: var(--step-2); font-stretch: 76%; font-weight: 800; line-height: 1.1; }
+.strand > p { color: var(--ink-soft); }
+.strand .tells { border-left: 2px solid var(--c, var(--matrikel)); padding: 4px 0 4px 14px; color: var(--ink); font-size: 0.98rem; }
+.strand .tells b { display: block; font-family: var(--mono); font-size: 0.68rem; font-weight: 400; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.strand ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.strand li { font-size: 0.84rem; color: var(--ink-soft); line-height: 1.45; }
+.strand li em { color: var(--ink); font-style: normal; }
+.lessons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 56px; border-top: 1px solid var(--line-2); }
+@media (max-width: 860px) { .lessons { grid-template-columns: minmax(0, 1fr); } }
+.lesson { padding: 26px 24px 8px 0; display: grid; gap: 10px; align-content: start; }
+.lesson + .lesson { padding-left: 24px; border-left: 1px solid var(--line); }
+@media (max-width: 860px) { .lesson + .lesson { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); } }
+.lesson h3 { font-size: 1.6rem; font-stretch: 70%; font-weight: 800; line-height: 1.05; text-transform: uppercase; }
+.lesson h3 span { color: var(--matrikel); }
+.lesson p { color: var(--ink-soft); font-size: 0.95rem; }
+
+/* Tidslinje */
+.tl-wrap { overflow-x: auto; padding-bottom: 6px; }
+.timeline { position: relative; min-width: 820px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; padding-top: 34px; }
+.timeline::before { content: ""; position: absolute; left: 0; right: 0; top: 10px; height: 2px; background: linear-gradient(90deg, var(--line-2), var(--matrikel) 70%, var(--kote)); }
+.timeline .pulse { position: absolute; top: 5px; left: 0; width: 12px; height: 12px; border-radius: 50%; background: var(--matrikel); box-shadow: 0 0 18px var(--matrikel); animation: travel 7s cubic-bezier(.6,0,.4,1) infinite; }
+@keyframes travel { 0% { left: 0; opacity: 0; } 8% { opacity: 1; } 92% { opacity: 1; } 100% { left: calc(100% - 12px); opacity: 0; } }
+.ms { position: relative; display: grid; gap: 6px; align-content: start; }
+.ms::before { content: ""; position: absolute; top: -29px; left: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--bg); border: 2px solid var(--ink-soft); }
+.ms.hl::before { border-color: var(--matrikel); background: var(--matrikel); }
+.ms b { font-family: var(--display); font-stretch: 70%; font-weight: 800; font-size: 1.6rem; line-height: 1; }
+.ms span { color: var(--ink-soft); font-size: 0.86rem; line-height: 1.4; }
+
+footer { border-top: 1px solid var(--line); background: var(--bg-2); }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 16px 40px; justify-content: space-between; padding-block: 30px; font-size: 0.88rem; color: var(--ink-soft); }
+footer b { color: var(--ink); font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 1.15rem; }
+</style>
+</head>
+<body>
+
+
+<div class="announce">
+  <div class="wrap"><b>NYT · M6</b><a href="#katalog">Klimafremskrivninger, oversvømmelse og energimærker er nu med →</a></div>
+</div>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="byg-mcp forside">
+      <svg viewBox="0 0 26 26" aria-hidden="true"><path d="M3 20L9 4L23 7L20 22Z" fill="none" stroke="#ff7a3d" stroke-width="2" stroke-dasharray="5 2 1 2"></path><path d="M6 15C10 13 15 16 21 13" fill="none" stroke="#59d2ff" stroke-width="1.6"></path></svg>
+      <b>byg-mcp</b>
+    </a>
+    <nav class="nav" aria-label="Hovedmenu">
+      <a class="hide-sm" href="#demo" data-nav="start">Demo</a>
+      <a class="hide-sm" href="#katalog" data-nav="start">Værktøjer</a>
+      <a class="hide-sm" href="#api" data-nav="start">API</a>
+      <a href="#inspiration" data-nav="inspiration">Inspiration</a>
+      <a class="hide-sm" href="#om" data-nav="om">Om</a>
+      <a class="btn btn-primary" href="#kom-i-gang">Kom i gang</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+<div data-view="start">
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <canvas id="terrain" aria-hidden="true"></canvas>
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">Åben MCP-server · bygningsdesign i Danmark</p>
+        <h1>Hele <span class="o">grunden</span><br>i ét <span class="k">spørgsmål</span></h1>
+        <p class="lede">byg-mcp giver Claude adgang til <b>matrikel, BBR, lokalplaner, restriktioner, terræn, klimafremskrivninger, BR18 og LCA-data</b>. Spørg om en grund på almindeligt dansk, og få svaret med kilde på hvert faktum.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="#kom-i-gang">Kom i gang gratis</a>
+          <a class="btn btn-ghost" href="#demo">Se den arbejde ↓</a>
+        </div>
+        <p class="works"><span>Claude Desktop</span><span>Claude Code</span><span>26 værktøjer</span><span>20 officielle kilder</span></p>
+      </div>
+
+      <aside class="sea" aria-label="Hæv havniveauet på kortet">
+        <div class="sea-head">
+          <span class="lbl">Havniveau over DVR90</span>
+          <span class="sea-val" id="seaVal">+0,00<small>m</small></span>
+        </div>
+        <label for="seaRange" class="mono" style="position:absolute;left:-9999px">Havniveau i meter</label>
+        <input id="seaRange" type="range" min="0" max="2.5" step="0.01" value="0">
+        <div class="marks" id="marks">
+          <button type="button" data-v="0" style="left:0%">i dag<br>0,00</button>
+          <button type="button" data-v="1.41" style="left:56.4%">havnefront<br>1,41</button>
+          <button type="button" data-v="1.86" style="left:74.4%">100-år 2100<br>1,86</button>
+        </div>
+        <div class="readout" aria-live="off">
+          <div><span>Øst (E)</span><b id="roE">555 882</b></div>
+          <div><span>Nord (N)</span><b id="roN">6 323 400</b></div>
+          <div><span>Kote</span><b id="roK">2,8 m</b></div>
+        </div>
+        <p class="sea-note" id="seaNote">Træk i skyderen, eller bevæg musen over kortet. Kurverne er en illustration. Tallene på skyderen er fra <code>oversvoemmelse</code> for havnefronten i Aalborg.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- DEMO -->
+  <section class="block" id="demo">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Se den arbejde</p>
+        <h2>Et spørgsmål. Fem registre. Ét svar med kilder.</h2>
+        <p>Claude vælger selv værktøjerne, kalder de officielle kilder og samler svaret. Forløbene herunder er genskabt fra rigtige kørsler med byg-mcp i november 2026.</p>
+      </div>
+      <div class="demo">
+        <div class="scen" role="tablist" aria-label="Eksempler" id="scenTabs"></div>
+        <div>
+          <div class="window">
+            <div class="win-bar">
+              <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+              <span class="conn">Claude · byg-dk forbundet</span>
+              <button class="replay" type="button" id="replay">↻ Afspil igen</button>
+            </div>
+            <div class="chat" id="chat" aria-live="polite"></div>
+          </div>
+          <p class="demo-foot">Svartider er typiske for den første kørsel uden cache.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAL -->
+  <section class="figs" aria-label="Omfang">
+    <div class="wrap">
+      <div class="fig"><b data-count="26">26</b><span>værktøjer</span></div>
+      <div class="fig"><b data-count="20">20</b><span>officielle datakilder</span></div>
+      <div class="fig"><b data-count="565">565</b><span>paragraffer i BR18</span></div>
+      <div class="fig"><b data-count="6093">6.093</b><span>afsnit fra BR-vejledningerne</span></div>
+      <div class="fig"><b data-count="507">507</b><span>LCA-datasæt fra BR18 tabel 7</span></div>
+    </div>
+  </section>
+
+  <!-- LAG -->
+  <section class="block" id="lag">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Grunden i lag</p>
+        <h2>Hvert lag på kortet er et værktøj</h2>
+        <p>Vælg et lag og se, hvad byg-mcp henter, og hvordan svaret ser ud. Uddragene er fra Plandata.dk og de andre kilder.</p>
+      </div>
+      <div class="explorer">
+        <div class="map" id="map">
+          <svg viewBox="0 0 600 440" role="img" aria-label="Skitse af en grund ved havnen med lagene matrikel, lokalplan, byggelinje, støj, terræn og havvand">
+            <defs>
+              <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="#2f3f37" stroke-width="1"></line></pattern>
+              <pattern id="dots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="#22302a"></circle></pattern>
+            </defs>
+            <rect x="0" y="0" width="600" height="440" fill="url(#dots)"></rect>
+            <g class="lyr" data-l="vand" style="color:#59d2ff">
+              <path d="M0 0H600V62C500 76 420 54 330 70C240 86 160 64 80 78C40 84 15 80 0 84Z" fill="rgba(89,210,255,0.14)"></path>
+              <path d="M0 84C15 80 40 84 80 78C160 64 240 86 330 70C420 54 500 76 600 62" fill="none" stroke="#59d2ff" stroke-width="1.6"></path>
+              <path d="M0 118C60 110 140 122 230 112C300 104 380 116 600 104" fill="none" stroke="#59d2ff" stroke-width="1.2" stroke-dasharray="3 5"></path>
+              <text x="20" y="40" font-family="Archivo, sans-serif" font-size="13" font-weight="600" letter-spacing="3" fill="#59d2ff">LIMFJORDEN</text>
+              <text x="440" y="98" font-family="IBM Plex Mono, monospace" font-size="10" fill="#59d2ff">+1,41 m</text>
+            </g>
+            <g class="lyr" data-l="plan" style="color:#b18cff">
+              <path d="M40 132H560V372H40Z" fill="rgba(177,140,255,0.07)" stroke="#b18cff" stroke-width="1.3" stroke-dasharray="2 5"></path>
+              <text x="50" y="150" font-family="IBM Plex Mono, monospace" font-size="10" fill="#b18cff">LP 10-056 · DELOMRÅDE KARRÉ</text>
+            </g>
+            <g class="lyr" data-l="stoej" style="color:#ffb27a">
+              <rect x="40" y="318" width="520" height="54" fill="rgba(255,122,61,0.13)"></rect>
+              <rect x="40" y="340" width="520" height="32" fill="rgba(255,122,61,0.14)"></rect>
+              <text x="470" y="334" font-family="IBM Plex Mono, monospace" font-size="10" fill="#ffb27a">Lden</text>
+            </g>
+            <g class="lyr" data-l="terraen" style="color:#9badA3">
+              <path d="M40 176C140 166 260 186 360 172C430 162 500 176 560 168" fill="none" stroke="#64766c" stroke-width="1"></path>
+              <path d="M40 222C150 210 250 236 360 218C440 206 500 220 560 212" fill="none" stroke="#64766c" stroke-width="1"></path>
+              <path d="M40 270C160 256 260 280 360 264C430 254 500 268 560 260" fill="none" stroke="#64766c" stroke-width="1"></path>
+              <text x="530" y="164" font-family="IBM Plex Mono, monospace" font-size="9" fill="#9badA3">2,0</text>
+              <text x="530" y="208" font-family="IBM Plex Mono, monospace" font-size="9" fill="#9badA3">2,5</text>
+              <text x="530" y="256" font-family="IBM Plex Mono, monospace" font-size="9" fill="#9badA3">3,0</text>
+            </g>
+            <g class="lyr" data-l="matrikel" style="color:#ff7a3d">
+              <path d="M130 158L410 148L424 304L120 314Z" fill="none" stroke="#ff7a3d" stroke-width="2.4" stroke-dasharray="11 4 2 4"></path>
+              <path d="M170 186H370V280H170Z" fill="url(#hatch)" stroke="#9badA3" stroke-width="1"></path>
+              <path d="M206 202H332V262H206Z" fill="#111a16" stroke="#e9f0eb" stroke-width="2"></path>
+              <text x="342" y="300" font-family="IBM Plex Mono, monospace" font-size="10" fill="#ff7a3d">JORDSTYKKE</text>
+            </g>
+            <g class="lyr" data-l="byggelinje" style="color:#e9f0eb">
+              <path d="M40 296H560" fill="none" stroke="#e9f0eb" stroke-width="1.3" stroke-dasharray="7 5"></path>
+              <text x="440" y="290" font-family="IBM Plex Mono, monospace" font-size="10" fill="#e9f0eb">BYGGELINJE</text>
+            </g>
+            <rect x="0" y="372" width="600" height="36" fill="#16211c"></rect>
+            <text x="20" y="394" font-family="IBM Plex Mono, monospace" font-size="10" fill="#64766c">STRANDVEJEN</text>
+            <circle cx="268" cy="232" r="5" fill="#ff7a3d"></circle>
+            <circle cx="268" cy="232" r="12" fill="none" stroke="#ff7a3d" stroke-width="1" opacity="0.6"></circle>
+          </svg>
+          <div class="tb"><span>Skitse · ikke målfast</span><span>EPSG:25832 · E 555 882 · N 6 323 400</span></div>
+        </div>
+        <div class="side">
+          <div class="chips" id="chips" role="group" aria-label="Vælg lag"></div>
+          <div class="info" id="info" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="ticker" aria-label="Datakilder">
+    <div class="ticker-track" id="ticker"></div>
+  </div>
+
+  <!-- KATALOG -->
+  <section class="block" id="katalog">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Alle værktøjer</p>
+        <h2>26 værktøjer, ét forbundet sted</h2>
+        <p>Søg efter det, du plejer at slå op. Prøv fx “støj”, “skybrud”, “beton” eller “lokalplan”.</p>
+      </div>
+      <div class="cat-tools">
+        <label class="search" for="q">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6"></path></svg>
+          <input id="q" type="search" placeholder="Søg i værktøjer" autocomplete="off">
+        </label>
+        <div class="filters" id="filters" role="group" aria-label="Filtrér efter område"></div>
+      </div>
+      <div class="grid-tools" id="tools"></div>
+      <p class="count" id="count"></p>
+    </div>
+  </section>
+
+  <!-- API -->
+  <section class="block" id="api" style="border-top:1px solid var(--line)">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">For udviklere</p>
+        <h2>Standard MCP. Brug den fra alt, der taler protokollen.</h2>
+        <p>byg-mcp følger Model Context Protocol. Du kan bruge den fra Claude, fra egne agenter eller fra et Python-script. Alle svar er struktureret JSON med kilder.</p>
+      </div>
+      <div class="api">
+        <dl class="spec">
+          <div><dt>Transport</dt><dd><b>stdio</b> til Claude Desktop og Claude Code. <b>Streamable HTTP</b> med <code>byg-mcp --http</code>, beskyttet af en hemmelig sti, til claude.ai via en tunnel.</dd></div>
+          <div><dt>Værktøjer</dt><dd>26 værktøjer med typede argumenter og beskrivelser på dansk, så modellen selv kan vælge.</dd></div>
+          <div><dt>Prompts</dt><dd><code>grundscreening</code> (adresse, projektidé) og <code>br18_tjek</code> (projektbeskrivelse, emner). Færdige arbejdsgange, der kalder de rigtige værktøjer i rækkefølge.</dd></div>
+          <div><dt>Ressourcer</dt><dd><code>br18://oversigt</code> og <code>br18://paragraf/{nr}</code>. Hele bygningsreglementet som læsbare ressourcer.</dd></div>
+          <div><dt>Svarformat</dt><dd>JSON med en <code>kilder</code>-liste (udbyder, URL, licens, hentet) i hvert svar. Usikre match får <code>match</code> og <code>advarsel</code>.</dd></div>
+          <div><dt>Fejl</dt><dd>Forståelige fejlbeskeder til modellen, fx manglende nøgle, ingen plan i punktet eller overbelastet kilde med ét automatisk genforsøg.</dd></div>
+          <div><dt>Drift</dt><dd>Lokal SQLite-cache, nøgler maskeret i alle logs, BR18 og vejledninger som lokal kopi med opdateringsscripts.</dd></div>
+        </dl>
+        <div class="tabs">
+          <div class="tablist" role="tablist" aria-label="Kodeeksempler">
+            <button role="tab" id="t-req" aria-selected="true" aria-controls="p-req" type="button">Kald</button>
+            <button role="tab" id="t-res" aria-selected="false" aria-controls="p-res" type="button">Svar</button>
+            <button role="tab" id="t-py" aria-selected="false" aria-controls="p-py" type="button">Python</button>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="p-req" aria-labelledby="t-req">
+            <p>Et JSON-RPC-kald af <code>plan_gaeldende</code> for havnefronten i Aalborg.</p>
+            <div class="codebox"><button class="copy" type="button">Kopiér</button><pre>{
+  "jsonrpc": "2.0", "id": 7,
+  "method": "tools/call",
+  "params": {
+    "name": "plan_gaeldende",
+    "arguments": { "x": 555882, "y": 6323400 }
+  }
+}</pre></div>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="p-res" aria-labelledby="t-res" hidden>
+            <p>Uddrag af det rigtige svar fra Plandata.dk, 17. november 2026.</p>
+            <div class="codebox"><button class="copy" type="button">Kopiér</button><pre>{
+  "lokalplaner": [{
+    "plannr": "10-056",
+    "plannavn": "Området mellem Vesterbro, Strandvejen, …",
+    "anvendelsegenerel": "Centerområde",
+    "zonestatus": "Byzone",
+    "doklink": "https://dokument.plandata.dk/20_1227973_….pdf"
+  }],
+  "kommuneplanrammer": [{
+    "plannr": "1.1.C1", "plannavn": "Middelalderbyen",
+    "maxetager": 6
+  }],
+  "kilder": [{
+    "navn": "Plandata.dk",
+    "licens": "Frie data - kildeangivelse: Plandata.dk",
+    "hentet": "2026-11-17T15:12:42+00:00"
+  }]
+}</pre></div>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="p-py" aria-labelledby="t-py" hidden>
+            <p>Kald serveren direkte fra Python med MCP-klienten.</p>
+            <div class="codebox"><button class="copy" type="button">Kopiér</button><pre>import asyncio
+from mcp import StdioServerParameters
+from mcp.client.client import Client
+
+server = StdioServerParameters(
+    command="uv",
+    args=["run", "--directory", "/sti/til/byg-mcp", "byg-mcp"],
+)
+
+async def main():
+    async with Client(server) as c:
+        r = await c.call_tool("br18_soeg", {"tekst": "redningsåbning"})
+        print(r.content[0].text)
+
+asyncio.run(main())</pre></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KOM I GANG -->
+  <section class="block" id="kom-i-gang" style="border-top:1px solid var(--line)">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Kom i gang</p>
+        <h2>Kører på din egen maskine på ti minutter</h2>
+        <p>byg-mcp er gratis og åben. Dine nøgler bliver hos dig.</p>
+      </div>
+      <div class="setup">
+        <div class="steps">
+          <ol>
+            <li><span class="n">1</span><div><b>Installér uv og hent koden</b><p>uv er et hurtigt værktøj til Python-projekter. Klon projektet, og kør <code>uv sync</code>.</p></div></li>
+            <li><span class="n">2</span><div><b>Opret gratis nøgler</b><p>En nøgle fra Datafordeleren og et token fra Dataforsyningen. Uden dem virker regler, plan, klima og LCA stadig.</p></div></li>
+            <li><span class="n">3</span><div><b>Forbind Claude</b><p>Vælg din Claude til højre, og kopiér opsætningen.</p></div></li>
+            <li><span class="n">4</span><div><b>Spørg</b><p>“Lav en grundscreening af Bispensgade 3, Aalborg, til et rækkehusprojekt.”</p></div></li>
+          </ol>
+        </div>
+        <div class="tabs">
+          <div class="tablist" role="tablist" aria-label="Opsætning">
+            <button role="tab" id="t-code" aria-selected="true" aria-controls="p-code" type="button">Claude Code</button>
+            <button role="tab" id="t-desk" aria-selected="false" aria-controls="p-desk" type="button">Claude Desktop</button>
+            <button role="tab" id="t-src" aria-selected="false" aria-controls="p-src" type="button">Hent koden</button>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="p-code" aria-labelledby="t-code">
+            <p>Én kommando. Serveren kan derefter bruges fra alle mapper.</p>
+            <div class="codebox"><button class="copy" type="button">Kopiér</button><pre>claude mcp add byg-dk --scope user -- \
+  uv run --directory /sti/til/byg-mcp byg-mcp</pre></div>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="p-desk" aria-labelledby="t-desk" hidden>
+            <p>Indstillinger → Developer → Edit Config. Tilføj blokken, og genstart Claude.</p>
+            <div class="codebox"><button class="copy" type="button">Kopiér</button><pre>{
+  "mcpServers": {
+    "byg-dk": {
+      "command": "uv",
+      "args": ["run", "--directory", "/sti/til/byg-mcp", "byg-mcp"]
+    }
+  }
+}</pre></div>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="p-src" aria-labelledby="t-src" hidden>
+            <p>Klon, installér og læg dine nøgler i <code>.env</code>.</p>
+            <div class="codebox"><button class="copy" type="button">Kopiér</button><pre>git clone https://github.com/NordicFan/byg-mcp
+cd byg-mcp
+uv sync
+cp .env.example .env   <span class="c"># indsæt dine nøgler</span></pre></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRINCIPPER -->
+  <section class="block" id="principper" style="border-top:1px solid var(--line)">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Principper</p>
+        <h2>Et værktøj til fagfolk, ikke en myndighed</h2>
+      </div>
+      <div class="principles">
+        <div class="pr"><h3>Kilde på alt</h3><p>Hvert svar viser udbyder, licens og hentetidspunkt. Usikre adressematch bliver markeret.</p></div>
+        <div class="pr"><h3>Vejledende</h3><p>Grundlag for din faglige vurdering. Erstatter ikke myndighedsdialog, servitutundersøgelse eller geoteknik.</p></div>
+        <div class="pr"><h3>Dine nøgler</h3><p>Serveren kører lokalt. Nøgler bliver i <code>.env</code> og maskeres i alle logs.</p></div>
+        <div class="pr"><h3>Åben kode</h3><p>Se præcis, hvad der hentes og hvordan. Byg videre på det.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="final">
+    <svg class="bg" viewBox="0 0 760 420" aria-hidden="true">
+      <g fill="none" stroke="#2f3f37" stroke-width="1">
+        <path d="M0 60C140 40 260 90 400 60S640 30 760 70"></path>
+        <path d="M0 110C140 90 260 140 400 110S640 80 760 120"></path>
+        <path d="M0 160C140 140 260 190 400 160S640 130 760 170"></path>
+        <path d="M0 210C140 190 260 240 400 210S640 180 760 220"></path>
+        <path d="M0 260C140 240 260 290 400 260S640 230 760 270"></path>
+        <path d="M0 310C140 290 260 340 400 310S640 280 760 320"></path>
+        <path d="M0 360C140 340 260 390 400 360S640 330 760 370"></path>
+      </g>
+      <path d="M260 120L560 104L580 300L240 316Z" fill="none" stroke="#ff7a3d" stroke-width="2.4" stroke-dasharray="12 4 2 4"></path>
+    </svg>
+    <div class="wrap">
+      <h2>Fra adresse til <span>beslutningsgrundlag</span></h2>
+      <p>Brug tiden på at tegne, ikke på at samle data. byg-mcp er gratis, åben og klar til Claude i dag.</p>
+      <div class="cta" style="margin-top:0">
+        <a class="btn btn-primary" href="#kom-i-gang">Kom i gang</a>
+        <a class="btn btn-ghost" href="#inspiration">Find inspiration</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ================= INSPIRATION ================= -->
+<div data-view="inspiration" hidden>
+  <section class="page-hero">
+    <svg class="contours" viewBox="0 0 600 500" aria-hidden="true"><g fill="none" stroke="#2f3f37" stroke-width="1"><path d="M0 40C120 20 240 70 360 40S560 10 600 50"></path><path d="M0 100C120 80 240 130 360 100S560 70 600 110"></path><path d="M0 160C120 140 240 190 360 160S560 130 600 170"></path><path d="M0 220C120 200 240 250 360 220S560 190 600 230"></path><path d="M0 280C120 260 240 310 360 280S560 250 600 290"></path><path d="M0 340C120 320 240 370 360 340S560 310 600 350"></path><path d="M0 400C120 380 240 430 360 400S560 370 600 410"></path><path d="M0 460C120 440 240 490 360 460S560 430 600 470"></path></g></svg>
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">Inspiration</p>
+        <h1>Hvad kan du <span>bruge den til?</span></h1>
+        <p class="lede">Arbejdsgange og spørgsmål fra hverdagen på tegnestuen, i ingeniørfirmaet og i undervisningen. Filtrér efter rolle og fase, kopiér et spørgsmål, og indsæt din egen adresse.</p>
+        <div class="cta" style="margin-top:4px"><a class="btn btn-primary" href="#kom-i-gang">Kom i gang</a></div>
+      </div>
+      <div class="orch" aria-label="Animation: spørgsmål sendes til Claude, som kalder de relevante værktøjer">
+        <svg id="orchSvg" viewBox="0 0 400 400" aria-hidden="true"></svg>
+        <div class="qbar"><span class="who">Spørgsmål</span><span class="txt" id="orchQ">Lav en grundscreening af [adresse] før vi byder.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Tre arbejdsgange</p>
+        <h2>Fra grundkøb til byggetilladelse</h2>
+      </div>
+      <div class="flows">
+        <article class="flow">
+          <span class="eyebrow">Idé og grundkøb</span>
+          <h3>Grunden på fem minutter</h3>
+          <p>Før der bydes på en grund: hvad må der bygges, og hvad kan stoppe eller fordyre projektet?</p>
+          <ol>
+            <li><span>01</span><div><code>sted_find</code> finder ejendom, jordstykker og grundareal</div></li>
+            <li><span>02</span><div><code>plan_gaeldende</code> og <code>plan_laes_lokalplan</code> giver byggeretten</div></li>
+            <li><span>03</span><div><code>restriktioner</code> viser linjer, støj, forurening og fortidsminder</div></li>
+            <li><span>04</span><div><code>oversvoemmelse</code> og <code>jord_geologi</code> giver vand- og jordrisiko</div></li>
+          </ol>
+        </article>
+        <article class="flow">
+          <span class="eyebrow">Skitse</span>
+          <h3>Klima og materialer fra start</h3>
+          <p>Klimatilpasning, solceller og materialevalg, mens det stadig er billigt at ændre.</p>
+          <ol>
+            <li><span>01</span><div><code>klima_fremskrivning</code> giver skybrud og stormflod frem til 2100</div></li>
+            <li><span>02</span><div><code>terraen</code> viser koter, hældning og naboernes højder</div></li>
+            <li><span>03</span><div><code>sol_og_pv</code> beregner solcelleydelse på taget</div></li>
+            <li><span>04</span><div><code>lca_materiale</code> sammenligner konstruktioner efter BR18</div></li>
+          </ol>
+        </article>
+        <article class="flow">
+          <span class="eyebrow">Projektering og myndighed</span>
+          <h3>BR18-tjek før ansøgning</h3>
+          <p>Gå projektbeskrivelsen igennem mod BR18 og vejledningerne, før den sendes til kommunen.</p>
+          <ol>
+            <li><span>01</span><div>Prompten <code>br18_tjek</code> på projektbeskrivelsen</div></li>
+            <li><span>02</span><div><code>br18_soeg</code> og <code>br18_paragraf</code> finder kravene</div></li>
+            <li><span>03</span><div><code>br18_vejledning_soeg</code> finder præ-accepterede løsninger</div></li>
+            <li><span>04</span><div><code>lov_paragraf</code> for byggeloven og planloven</div></li>
+          </ol>
+        </article>
+      </div>
+
+      <div class="sec-head" style="margin-bottom:24px">
+        <p class="eyebrow">Spørgsmål til at starte med</p>
+        <h2>Kopiér, indsæt din adresse, spørg</h2>
+      </div>
+      <div class="insp-bar">
+        <div class="insp-row" id="fRole" role="group" aria-label="Filtrér efter rolle"><span class="lbl">Rolle</span></div>
+        <div class="insp-row" id="fPhase" role="group" aria-label="Filtrér efter fase"><span class="lbl">Fase</span></div>
+      </div>
+      <div class="insp-grid" id="ucGrid"></div>
+      <p class="count" id="ucCount"></p>
+    </div>
+  </section>
+</div>
+
+<!-- ================= OM ================= -->
+<div data-view="om" hidden>
+  <section class="page-hero">
+    <svg class="contours" viewBox="0 0 600 500" aria-hidden="true"><g fill="none" stroke="#2f3f37" stroke-width="1"><path d="M0 60C140 30 260 90 400 60S560 30 600 70"></path><path d="M0 130C140 100 260 160 400 130S560 100 600 140"></path><path d="M0 200C140 170 260 230 400 200S560 170 600 210"></path><path d="M0 270C140 240 260 300 400 270S560 240 600 280"></path><path d="M0 340C140 310 260 370 400 340S560 310 600 350"></path><path d="M0 410C140 380 260 440 400 410S560 380 600 420"></path></g><path d="M0 250C140 230 260 280 400 250S560 220 600 260" fill="none" stroke="#59d2ff" stroke-width="1.6"></path></svg>
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">Om byg-mcp</p>
+        <h1>Forskning i <span>AI og byggeri</span> på UCN</h1>
+        <p class="lede">byg-mcp er udviklet af <b>Peter Nørkjær Gade</b>, forskningsleder og docent ved UCN Teknologi og Business. Værktøjet er en del af forskningen i, hvordan digitale værktøjer og sprogmodeller kan arbejde med byggeriets regler, og hvordan de gør det, så fagfolk kan stole på resultatet.</p>
+        <div class="hero-links">
+          <a class="btn btn-primary" href="#kontakt">Tag kontakt</a>
+          <a class="btn btn-ghost" href="https://www.ucviden.dk/da/persons/peter-n%C3%B8rkj%C3%A6r-gade/">UCViden ↗</a>
+          <a class="btn btn-ghost" href="https://aibench.dk/">AIBench ↗</a>
+        </div>
+      </div>
+      <div class="portrait" id="portrait">
+        <canvas id="ringCv" aria-hidden="true"></canvas>
+        <div class="ph"><img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wgARCAHgAeADASIAAhEBAxEB/8QAGwAAAgMBAQEAAAAAAAAAAAAAAgMAAQQFBgf/xAAZAQEBAQEBAQAAAAAAAAAAAAAAAQIDBAX/2gAMAwEAAhADEAAAAfmMkCurJJFqSFyrKuQkkKlwqXIq5CFVlUVquMITbYKIyF245c166lzXok0mtFmYN8s5o9BVzjj1WDLllCQkkhJIS6su6slXCpVgyRCurWS6KkhckJJZKKokhKJN0TWVmoZQJOdnbMJK+LKV7U6c6ZKGCEmLnDYwxTUkQDF1dhKdaWkTouOWvrZd4xC0NYGjqwZcJLhLqyVdEkgMkQrq1kuipdFyQuXJaKzlhlsxrG/eqaxYtGbUG6q5YWeJsPDraZ0QTjfZid2Lzh2ZAizKs1LQ2qUTTErdmsS0BrXeXRK26rOlYOsq45Fa8/XmFXLBu5ZLoiCQkkhJBCurLkgMuEuSWMvRnQO29DnvLvVz8dH8kl9MVEzeDWTDIOtaZzOzpbOf0sdJtyJzepmXULzvquaO7n6z0OnxehLnw6EWKti6vVz4nULLrxoCIppGTqVZxE9DN1454VakuXZUsSSQGQiXVlyEBCFbeGjO3sy7+XQGOzSxRZLJjpfTBSMZvZi3Smvfed81uokQGvFLqDDqFvygdC8ematwiqF7DZpysdmzCg9SC5dielkHN61NDG7glmjyuyOs+dXvy9+S7kuYJjZUlgQoQhsOSFS9E2O9849mBa80YWOwMZL6cwa/pHP19TVnpwp35lxi1JIYOF4d665U2wxFrauJnRrNyGVic+9aYla82s55a940FlNNJk2aDqc/TjStFZM3aJ2ZuT1M288yjHtxqENlSQqCRLqw7q5S9Bzujy75nRGNkpOtlXO1YN5Hc3vrl7urTy75z0XN5x1UcnL3V2cBXocd58hu9pzGdQ5rkM6ty476RNcPJ6NB5pXocescdPUFng4vS87fPjRg9OTOhz9ebvsGc97OfvXLz9GVwzMU056N+LryCirWBlSwZCIQlKbw143vajdy7Z+XqyppY7NXN6Ob0iu7Av594dEsuiWXIkuGCLmWc49dSALhulWUlkkBBkjMnYo56egFzzsnYyHked6HjdvMndi2XG9oN57J6Gy85HU5dGpyaHNoTvCAavpzXJLmSQjVuzp7c+/n01AvNnYdDmdpF4tORrp+j5ndx1Jg3nZWJrdy6o6JLISGGB2GshE1dLVFUtVIVJCLYCIBggq0BLxvOey87vlxB0zp5978uvGquBLr5/QVbw9asuoa359ZBLk75LkmsyQpSYwM6dqUWOlZiRZu2pHOhiNU163fl2cvRLqwjEluxOrOMQCu7LKpV1UAExlCEMo0YFS6IBUihYBUtYjjdfmM8B4v68F6se/LOpq4d0OR0F5nP6uXUWgr1My2BvkqXW8Voz6M6cAOzvTmJTQpMU6yCVnS+tx/SzXe1ZncfQ0hIK6sjVsrQSW2SVC7CBQbqgIYqVa1UktVdFAdIAlBWd+UHDu59xxSSW+JdDB1IwAypVPCggjK4rhPeM6NOXeAq63zjFnnRaczp0GqAogNNQBJqeu8p6/n16LUt5dtBCQRCyhKQNiyorEkkkKklVJJRq6JKksqRBohKGxpGZ+eQeZ0uXc8i6nTjfa4PdjFRhmmnbiEuzPrnbcjN4Tj2ZN4VV1vnDG86JqTapcFI1DlKiXNbvV+c9Hy7b2pbz66GKbKbFsq5dkKrq7ukkqEqFQQqloSgNFUo1dJQmsFZKELgoHL38reefQL352d7gdvOhz6c8acjBMpAAvPrxbz0uV0+ZvChId4IbuUhsFGrpLYJtEMLN6/f5Hc493uzvx10tU6U2Ayrlwu6ZZUOgIdWjd2g0VKNFUCLKFiwYFbUikNSZLqJn4/Y4esY1Gvrw0dPldLFZMj5U6cG0566mo3HoRZozNR0yoSHXOEFrYXIq5CzGTRNVrl9F0sW/z+m9CNk21wMCsRG2iVoLIZrmeWvtBDYuIYrEdE0r6RcHBtIly5c2fZmMUIUz8Tu8fWORn1Y+vDbrwtla3KWTNXPec9+PT0hUlyAm61gQMNZGSEgwK1nKRC6avoq389drQpvH0M15ia0znrs6Y8tZ15xAs758bXNdGZCa2MyNHrBSnWaJorGhOpfHu57JcbQdW+fa6kUcYF6cyq43Z41xy8O3F24OYhgTM5ytoEILs7NYsxhVWNQDG811LtqSiGBys2p6eNVvDdz67ZeXHV4YBNqMWe53Y8iNx445Z1N/A2TXpdnnOjjfbdi2TdodiUMiudrD+dee4N2GXHV3ef2y90+VozrqauVomtOWATh93i2crD0ef14RijsuhllrIbIYkXJIsSGyCQ3CpdWySEdNed3vz78aZ0uf1OfRuHYvHTlr283Uzrl2LTpw9OZRqkjHhOuzVzOvjXc6WDp56L5Xb5S8DFt5euasuqazlLRnuLuBc7N/KHO++/kbs623nfNaeV1eenG5nT5nTjLu9ZXLCy4NoV0RJcqVIlAY3A1coJcXqaw1cPWvTbWZ0se3GhOFjefm9cV4e3plpzOR6oumPH6/UgnE5vpxz04Pd0PzW9HB0Jqcrq8quHyvQ5Ljz5dRmpg4/r06x5ivTsY87XpuPN4Orm2y6NDazosryPL83vcjpxC3Os5odQTnt6LsueHb5tc+SuvOSRmCQ3ISQupS+k6uH03m93LTu5MuvXh3TL9SdGehrasxvTzV7K+FddPOfUrBq2AqhKQe7Fsqczo4DPV6pOPXay2AznLOpMmqUwZcvNV216zzG7RTJb0mLndxNxyg6mazls27Wsl9bLNZ+P6Dy2+eMRrv5GSrSCQoF1ZUsT1PsPF+783t43G9Lhz0yapTO3Tn15286bakdErIWmCCasVmaiWpRK7UptBj15pM5DDa1GmxefdS8bN6G18/u6tphZqWmUHokTj2ZUUsxuV8bvedt09TidFewomTWbwfqPJ9vJUk68DurIJCgyQlXR6T33hfY+f1mGnPjryKoWejty650cxR2ttd0YhnVyMiJdFKdJRi42GRazjzask1mjiitvMfb0Ylocq7JRCkEgRKX54Xl15pnINruelw+/muuBobGuk0Zl47jasvq8EkmsHdWSrgq5CVdHovcfOvofn9W/HqTjtwVNUx1tOLS66CzxdApVK3ErCadVaLczcvKTtlwN6du+bVmic9UvavmNV9Z9UTZzBO8XP0aaoixyxBKTapmk2CZAuXHUUWKbB3QU0OTZwLnygSvV8+XVh3VkkgupZUkNX0T5p7rj39LS2cvTws3R5zG3Ric3piKmm45hW+snaNCBSPM+ryJ4/fqwbx2L52mOdi7VVzuiehW9bm787dzeomXndHklHbPA+ngukNNrZEbWmcwbcbSJs6RL1KvwfqvC9fONXXbyy6sIhIlXBV1CSSr7PFPN+k6/ne7h6fT4+N2Jp7Vszs1kpvHpz7mWmho8LJqqdZk5veTZ46u3guFuXtBc42heDZpi5SJ5nVzi93A6MvSijIJCyCjVYvZlbZ0yWed2ouIee5Bh6vBJUubkgRCRdXBVSEklWQFB3Vy7fS+V9Tx76WoPn2eq2zeN2gLFsy4jtzzD9PSO86/Ou+zgDXZxqsp+O13XhNNo5aR8QSAg8yIp1LtekpXhAQAIbkeD2vE75+90/PWHq/JKrpyqrrfKpcJJZZAZckEyQkkqEJB2JQz1vjvUcu3RKXx9C9ea16A3c1h877ldny/v6te8jOzry4DvS6k8Sn3DM3w2P6ByLrzE9EquGnrcuzO/iBrHpCV1cbRqeWdIRo59mwLCyqYCc7y3oeH18+errpyupKkkJUiS6gdiZckEyrJJKhDYd1cTu8LpY36kkP8AP6nJ1oaPRkfLsJRWpw7813zB7emTN0cWZns9DybJPR5uRdbs9RrLl3CnH6W0rIJTNECsyYdBWUDAuYBLTz3J6PP7edN1N85JKkkSpISSyzAy5IJkhJJUurDkuI9El9Xu43Q8/p6jMm7PTK0bmnmqUeZy2l78ku+u/kHXRXiqtiUXK5EqQDGmGWEkZQ1BqmJB1jesoqokx6+Dc5MOzJ2456ut85JElXRJIS6sswMuXBEkJJCXVhEBEkh0O15ju8uvX6PI6XH0PTozTbwOrBC1rCyrt6Bcq7OpObZ0S5dnVDA+NECQygoaSxAlakrMee5kqIHkO95zpz1ZtGPpzCrrWJJElSEkhLqyzAy7lH//xAAqEAACAgEDAgYCAwEBAAAAAAAAAQIDERASIQQxEyAiMDJABUEUM0IjUP/aAAgBAQABBQL72DBg2m02m02m02mP/JwYMGDBtNptMG02mPMjCHEcBxMf+HtFBs8M2RMQMR1QoZNkTajCNo0bTaY8+B1ko4+9+8EYiicHiYJWtjedVojDMM51wbRrA0Meq8jRKsx9zGiETH5Vg2C4KZG0dY4Y07GdcD0ekZC1wSryShj7ONIxciFR4WCWETl5slc+ZxUlHvWzOVJDJEpYN45YN4otko6NGBCZjV8k44MfWSEiMSupsxGtWWolNyaRhGEOJtMa9PLI69yhwJ6SQySE8Sc+emhvb7WDZk3CkITHp3HEsg4tr6iIxK6HIjGuA7CyzL7jlg3GRM7jMaYKlh7tkmeJte43jek6skoOLqntXiR2WTyKI4jRgTaK5bhLHkaypR2kl9KESMTeoidkza0Nj4JyG9YsibTabSECPpLGVzyWRFJo3GR5xuZxInS0KtsjVBLESW0l3ZjI00US3m3VE68qcMDX0IieBbpldCQ7EhybHwTmSemDAiGm02m0l2sIm/I9EyMjh6b8G9EmmpzNzEYMaJbXXJTjLgWikWQ3KcMNr3khIhUcRH6tHwSZLRIjWKHHhnhifpE9w+CRJGPJgSMGCUTA8jemTeb9YPZJ4lH4NcmCL2lkcqa96EckK9qcsiRJnZWSJM7ldeSugjQKjj+OOklWbTDTazD9TiOs8I8MVYqh1Di9dpKA4+SJHGNptOn4LYkZbWpZJLcZwWrJLv7cVl01qMZy3SisKyZAmyb5xkqryU05K6UKs2GwcSdQ6h1m02GzjYRqHURqI1DqHUSqHWY0lEnAktYyIvXvGxYa4MkvUNE17nSwzPqJkYbSUj5OXpja8JLLppbKOnIVpLy4HE8MlXyqyNZ4ZGscCMTabRxHBDrJVDrNhKsuqGhH7hoissQvQ8GTJJD9quJT6Y1xy7GSZTEkT9UunpKaiKwLz4MDjk2CgbTaYMa4GhoaJQNg4FkeOohpEgLRD9ULIZK5bXOODJIfswXJDtL0K2RFbpYwrnthRXulXHLgsJezgSHEx7THo0WROoiTXJS8+SD9VkcFkSt7lKO1oYx+aIiCyUjlkk9z6eOItlzzLp44VEMR92XtMeskX1l0OVEj6Z90uwiXqLYnaWd8R6PzIjy+y3YUpcL5P0xZD1T6aGWvel7b1ZJcdVEj3shzRyo/AzicXzdH0WRzGEh6Mflis6QR2TY2dNHdOb5seI9OdNHEfbWrH7T1ZI6lcJczjxT8hdrRSH6o18Oa2WDGPyJZMYRWichsZ0/pg3zazpV64cJefBj6jJF/bHP+K+8iBb2ibixf9OojlVMl3l5a1zJi79o/tn7ztrJd+iXKF5lq/pskW9pd88Q7zRHvPsu2RsazWPlT8sDJAm9Y8ym9P9dDERHzIX1JEiXa18T+X6rJdkPlEu5Aj82sOa48qEftsZV8pvlke/ScRI+dfUmMkW9pd32oeW/j+q+yQ/lnmJbxc1url8PKj9aw0bKuZdP2I/bs0l2sJ9/89L8/8S/rrfMuF/uXzidR/Z08sli2yfnb1WjZ069VekRar6r0s7knxYyQmdN/bL4y+MPle+EX8TrZZ84emzqEMfkWj8v76ZcwP1HRaL6rMk3yTZcxsTw+l/sk+J8R6dZle+YHUfODw7O/7zupY/K/Mu/TENIi0X1WMY+5IvYiffo+7ZbL09MTeZ19rn618p9/3F+l+RaPyLRHSxI6REIX1WMl2/bJdryPwfx6XSxlbxBfJcRm/WzuPv8Ap+5E6ZelaRQheZPTJn3WMl2GS7Xrnsk/TTwlIzmWT/Tfpz6mJ8y754H7SK16qF6UIgha5MmTImbjJkyZMjZkyZMmfI0NEtZF3ezjSPbImVs/1bL0ob4M8aP2URRTHmv4kBGTcbzcbjcZMmTImZ0bNxkybjcbjcKQnoyRLSXa35W6LVfFd7n5WIfsxRCJV3h8SI5DmbxzHYO9H8gjcRsMiEJ6NmTI5juPHPFFaKw3niClpYtJ/Gfe3Ra5EyT58j9qJFCRTHmPabwbhyHIcyVhOY5m8jaV2kLCMhCGSJMlYWWErDcKwjYQsN4mRkZJPSz4lui9p+1WitJGCmOlrNxuJTHMlYORkyJkJEJFcyHaIybLJkpEhnGiISFIjIUjcbjJP445tJC+mkVijkisFQy0wMnIUWyWEbkZR3MEeCLK+9HaJJFpMkyUx5MM2mGKUkRuIzFIUjcRfL+M/lZ3Yh/RhHIola5iJZKlgbGskolrwRPVOVtW2ONpKyMoxXq2YNpHgqjkpjxFEkXIt7y5HEwdh2PL3qO8wmeqBXPJHRI/Vve35S7xH5cGPb6ZenBFGCBEYo5JwkWUiqyV1bS2pyi6JCoKaHutgSgV05Ka8KtESReWx4cCRGLkW1f83E8WxrGSUGlGWRemVZES0tXF/dkTBgwYFAUSa9ulYrhHJKPGOK15JZMEYpjgJNClo1klBCqiRgYICGXjjklAdGSFOB1ZP4sT+HEj0sIk6Vi3p8Pw2U+kUojlo1ldRDlx5UTYOKFEUBQIQ56lYm/aqX/Kmv0yhpDSCEkYHEwotNGUb4on1ETxnIhGTFDWHdDLSJKvI4uIp4cZRY4Hhmw2olBYcEzYkKJsZt0tjuPCNhKIyMSNRKOCherrf7n7XQeuqEMRsLGUcxRAicjhJkqWyVVkRq4VFkivpCFMYmB6w7kiYu6HBMnRlSplEVs4Eb0xWIjgcfEfhHhRPBMSQ9GYME+CMERgKJdEpidZLN/tfiTHFqLFzXHaokSItMG02I2mNGPWC0kS0REwOJKmLJdIh9JJC6aZChmyS0fGkh6s6qWJ1T4gyBaubP8AnTY8y9r8R/Zj02RIVZndxKBEiLXBjVknqiOjJDER8uPIxjGMejReszqIMqH3/KWYr9v8T81zGaK0dV/ZAgIQvK2SkOQhkCKGiQxnYgxey9GSHpBZhbV6tuHEp7fv8jPN3t/iPlVLBg7S6v8AsgQ7LyZGyUidhuyLWvumMsGJEkdiMxP2HoyQ9K/jbHmSEV/HPHUS3W+3+JeLcck1h9T8qyHZaZMjkOROwzucVxnD3DmQmKY7B2G8yZHpGZCZkz5GMYxk9I/GbHBkIadTLZRLl+3+Pli+LyIt7XfKHeLEzJkySZZMzulCGl/A78C6hEJCkORJniEbDeORDlTi0QswRmJmTJkbGx6MkR7ze2FeW8caflbMQ9zp3iyiWVEmuL1iUSLEzJkbJzOZuivahliyr6ucYKJ4N5uLrZzMTITsRCcmV8kCSLYYITIyNxkyZGPRjId5R3EYY1bwuts8S73I8PobN1cHp1aER8k5D9TqhgWktLK8llI47SMzPGDbkVSEkiBHSXJbHBXYRkZM6Z1l2KuWtWdfb4dTeX7vQ3eHKq5M3o6ie4QhaSJMqgZF5ZQyW1E47RMTExCQoiMjY+SxODqmRfmelHfWTwuvt8S33kVdRKB/NeOmudtiI6y7QWZZwIWmDBgSLIFtZKsUcEYCiY801lfB1yE9WMekHiUXr+Q6jZXnP0ujeLYkTOk+0FjVG9HiCsN4poymSgSqyKnBtMIwbR6yY2XLKpZHVj07H8rbdVcmvER1HWRgrbHZL6VD/wCsD9iZjIo6SmkTuH1CI3ZPHwK9Hio8Zoj1Q+pPGybzcbjeeIeIbkTMnchHEtEPW14hLmUJygO+b+rXxOskfrsQemMlvT7l1PTziJNypq4hRlfxsufSSUaujsmrennArqnMdM0bnneKTZvaHefyURvR4mRMgsmOWSYuz1614pwP6/TyzH9IkiAhES2Ckup6TEunj6a8YqwYIcKyKkq6oxrlHiPSR3dR06xClJX05ld05dXtdcJN0dJIVJGGDBIlzL9a9cyX2Ojfoh2j3aMEGIjpJEotLfeVWXVOvqxdRFnirKksTaN6LZITLO8+R9NvdHTRgYMaMn2gstiHp1fM39jo3zUz9rtJCIi0lpDDNiY6SXTs8CRsuNtzI07RwyYwNCQvJ+y5kVhPRkuI28/ZpltnBmSDGtEJmRkhPBXYKSPEgOyJviOaNxuJzO4vNOXEeZD16mWKpdmP6/7plmMSt6SF5cGBa4MM2m0x52yfJBYJeTrp+v8AzL7PTzIMgQJIWuRs3G88U8U8Y8c8U8U3m7XOiGSZWtJPOs3tU5b7P1J/Zi8OuWYwZWz9Puh6MaOTkTZnTk5ELyZESYll9lJ+Trp4gh9n7i1//8QAJBEAAgICAwABBQEBAAAAAAAAAAEQEQIgAxIwEyExMkBBUSL/2gAIAQMBAT8B86Kiiiiiiiiv0KKK0XhQ8SvSiiiqH6XDRXlRR1PsPxYtLjqNeOKluUUVotlOSsa3SFjFjErOh0KiiiioocXrkh7ccsxxsWFTQ8SiiijqNFGWELXLVaYqxLV70NGa2eiFpivfkVlascpShC989mOELTBfoZbuFpZh+hlC1cKLnD9DIYtGOb0xF75DFox7IQvfIc3L2xFPY7F62djsXOQ5cvbHSyxCctjhRcMym9+rKMVo2KFqztrlD0eiX0GjGKOplxpi4jqJS0UPCz42dWtMijofGZY0oenH9hr0rSioasooSOb6Lbhf/Mr9Bwp58rdbcP4x/RaVN+LhTk/rtwfjH9FpZZfooydY78H+R/Rb34PXmy/m+LoXN/osrFtUpRZZeihujJ2/Hj1v1yyo+Yy5Hl5celWJPE7HyM+Q7ljZ2cuc36YffVDxOh8Z8R0HiVLc5elieiiitnLZl68bFKLOx2Oxe+Q34f/EACERAAICAwACAwEBAAAAAAAAAAABESACEDAxQAMSIRNB/9oACAECAQE/Aeckkkkkkk6kn0JJ5TRZE9ZJJFtjstPSZPOSTyJEUdlt6TE+LJPIltkk7jU1e8WJ3keWlqT7E1kb2tumN83pCHlA3uSaySSLLTohOr2hvumOqqyNt98XZUfqLT2tLTHR+gqrS065egtOiFfP0MSB0Qr5P0MdPcCFZ+itPkx1johc2x0ggarBFlzZltCstwRRcm/3T1IshZH3JGxaRImfZE0RJJ9hObZeSR+hOkyd4Wz81jlBBF/jX5bPz7C8W+Rfvrpft/l7Rx+PH/btSfzGo9VKOOdY644yfyMcI5Z0X4TSaOuHTPxaNQRubLoyPQSF1zQ++IuH/8QAJxAAAQMDBAMBAAIDAAAAAAAAAQARIRAwQAIgMVASImFRQWAycHH/2gAIAQEABj8C/sb9VJ/qkdDFljh/c2bbjFY5X1fg2872KccqVO4pzwo3eu2ciYFIU2watq3sp3/drLiMSV60kplN1tsKaetJ3secll7JtNPt+cBwvuycP2UL5d+4z0b+KtgzSUw6TxOz7gOaOa/MDjFdfMEaRT5RunY8KOL5K8jRk6evzpHXjqUcXgE35Vqt0n/UydMbz/lXoOqnm4wTV0hHpxR047UGmoUCBRCOk4D1CHQHcKOnTG8B1pvDqDuK8e8Ke+OkNDsNfAoi8EOjO0UKKBT9iVqq6ZBHttR3FCp7DVQ446PV3h2k0P8AsScrnqpvxsjqHKioHjgOQp6SN3BXCcikW4oNJ4FHTHLFnjZwv8bbFRvcbIxxZndCm3NeaSnNOacZb7IpyoNJKm96r2rK+Vg3TbIzoUFcrmk3SUTbPVk7fHtztNwpj1xK1XR1rLVdGA+f43QhiOvWAuVzSavhG8M1xgH9vseM575bjA5XCL9SR/PcF+FzSOU5wxa5pOQSioK5U4gQ3xthOnpAXG/npNNny07YpFHZQKCsJ9VoDo/REKZBXsGXK5sTvfacki7FfUqdSkm220o5IuT2I6Hxy26B0Tlg9A2F/8QAJBAAAgICAwEAAwADAQAAAAAAAAERIRAxIEFRYTBxgUCRocH/2gAIAQEAAT8hwv8AFg7IIIIEhYJifBZjDYbjRH41wfJZf44IxGFhDbiCcTzilSGfpYSEIuxuEpBgYgf4ELL/AMRITeHSFXYkdQ9sj6CEKE7EUoU0iRhaiG8d9j8EZXg9uBqIGyfRONG9oavoU9DWw+aF+HofFZeNp0ISC9Mr+0R6DxpOhuzP6LW8E7s+BNKhpCyBTF7ypGtkjQ3VjHRrs3+yRWjuLZbzAxcuv8BIRiB2KOg+IIsr0+ha1ZJoEgk2lIprGagWg0PvRu+hz2INJYS0eoykQmaCFoMaGRY8PCFl5nMc0QIKtIZUhs/RBdYFzoeJJZLk22RIJP8AoKeWeLwHC3hCSkc2khC7vwsxRMURrRXZIajtYHShOCnpwxdG/SUOBHBCw8/84TWHwWCcVNKRHtgpHsQbb14TfrQ3uENHRjYKG2MCXhD7lr6IZpGpUZCJnGkbJlSINuoGNgiaoRVUIanloWwImrSxwknno09iiNDSK9KB7HxfNZQhCyfCWQjIh6bJ1TQ6wNTsmwi3eHgJJKEGIE6Q+QqcGLvpkumxYlFApZ7LCRMoT2XZWJ1HMhSkqpDgNKYlodeBiFCXwSJhtDmseweVh8VweIJD1KDrJfpCJNx8EmXWOzAvG7JLEJLgfyP5FckcMRyT1JI5Nw9k1DSGJXveCMCRQhcMfToOoagUpSUUkersjohk1oShpQlOmOAq3o6wVoGPD1wlh4XBZeEsQn0SBLL1/wCCCIUDbsUjXhBTEhnUSUEBlXEn6EcDP2H0KKNi72WhyLSQaE8ZGFId9odCS0WbLbZCCcn7GS0CFUBW5piCtSdwFnBi4WLLRIXwlYvYUP8A4GezgONLRQpH/wAGlsgn0h1EN0Rf7HBNGp4Jyq2RLoaGxP8ApcysiRFkeCedENi0EGfwktDBnYxQFAUiJF4xqJUWW5JbQio5IY0hSmiF2P8AJ2NhWxUwmVo76onehfBK0nJhJsMcs0OqhLSRMRq0QN0bH6gmPS4fBu+jtJGlongc1EDELIhrodomxiKvo1A9kjDhZSfQzZ6CRD4Ho7gpK0JTTEWQkBYfNG7HLjsQuhDK9CegJaThCTcD2464SZh7aHdBRaE+EfCHglqILNHxL9Ek2jsKcIFWBJtC50fLEjwXDoT4OS0OI9aJRqQyMaHT8J9EqIYqc+D34wzhITzRRKHLZcRYx8kISkj21ok8fREUk7aQSaV0UF2Vy7Gkw0OqjWhJEEEDQ5dEvQ5UPUIGF0NDrrB2nx4hlNaFeY3EY9op0Rs2EhuIQ1L/AIxpbA4qQXkcv0KihcMYuCOlGyyWUCmT39R6TOphQl7ExrlqxThJQErCQgsQQQRkjDg5RZJCMiyeS/ES1od9FmjzELY1Y12Vcf8AcVQkHU2hVGzxB9k2cCykT0Yx8USyZPS19LI9jqGIt7Hown9kiJIxEJgQmFrhAkQIUFWhQw+LwxBBrDWW2j+EiNFFPYlArOiBJ1QlMQBBDoDbRsxMHxSR0lokt+FV8Oyc50ixJRyyCKdIhKtlgIWELCERYhCYrEwzrL5iWNLT8GJpP9iO0JxMTY9xWEnQxSUIAaafw9DtYPgitklLsSRmiNDRNolZFbsaLbg3XpF2JCgWEJZSFhCWE8HxeHh5oUmYiliQYJkmJjXnZNSfqGLbJl3sj0MZvtbLIbu8jFnvdYqnti2MR0TMjW9LZPuTLm2WaRAkZWViBIi8p4jw+DyW88jFwmUKrPo1HhskxSa6YqS/dEfDiT8Oq10QyPMhJDRXokS/EdCNg0sWUSTwTAotMJCwhbFgjCJHh5eYwxjxA+K2KNG6Ff7LN/UWbXwspp4FRJEEPZEJhliwkMY8q20SWLSBP+hPbQ54+n7ESPInVnUesLPZGRRwSVl5eWMYx4dD2aF2HusKddEEmwvjUaJCr7RFyh0pmox4Q0JlmJFkn8H4NiwilKiaNiJS8HELKwYkb4oexk8GPD5BEw9hsbihsxbCBgi7X1CQ7FVGAx4RMKjYapQ3L4NCqskDUXK5SFlEjCZPJ4fBjw8djXg1Dy0l3w0B2fCLMsi+SU2WxGhpmqFfONP2aQ8KhYPoaGxsoxuWVYJIUWCEdiRAlhC5Pg8vLJGvJ3xbcarGvwFL+YEj/QrQZJP0aiDZkZ9hIGLzcdCySTZUWzoJQ1CwYQskQLRAsPD4PgzoeEjCazK7NiKmwvHo6vpAyFlv9ElZqCzIN8Ji3Ed9m+SydDknYmdCsVDoLAsFwLhPBogggZ1h4Yw6ZNBsLGkWIt+oiVfTZxKuLr9hv1ESbTsP+AlLykQhxvCEdChbQlITzIQSykQQQRjsggaIw+Rh6GkdGpQx7k7igpGjQKKWSbEhPCT9xTyHmgzRdYvgbosJYWDwoTEoWZMFlCzBHB4eIw1xhYNw1wP/AAHmQ8f0U7JnBIDdhwmodWS0JBNINLHwZ3lI0IS6FGhRYlExJOJWCR4EySSSRZbyxRMS3lWCYXqKCHKiRgXQkwQLs/pomRhdh2D4J4rRMiWSr4RHUsygQRP4HVfiB8mTwJaHsZqWZCYHgaFpQwTkQfqHsoidjBvGnGSRYQkZQYsKKhLHhCrsj6MtfcY+kZEV9n75U4XwZYYeiD6DZYQSGPFYPs2NSJG6HgPsTqCbJoWya/AHhCJGQoSgtB6RFIjQwbeniQ9iBZ0ewhpCmMNgbooHYiLQldkfSL7PpiUT6JTZ2YqHsb42w9i6HYSl7F+BOexCSL6HvEogmGP3KBZAj6jOymYnglHnOxGQjbHeiedkHZZvApJDSyxTJk7Jxu2zcZ0xI34TTnPQsaZfBnYighXsyLIBVnvEhGNsaNpeF8imRdl+x5y4Nj2xg0n0OS2UHaexuVWKuxjb6Wco6N2bYNiw3wWN5fDoSs+B0RpdCkSRfBZGKnQi1H7Y3VB7IUYHYmQ7DSFxasfA6IQZ3ZMhMRBhdnsoFNVivwkFisMbzcTgZ0LCyx5eETz4jUaFZCV9ZdixzhIvqaWnwYiF+xyJwIJZK2VEh9g+gzcfYiwqCtiQHkWCXskMUSIBmH2JphBJlk9HvGoWy4ZSBvPLI9DeEJmKGyMvg1hG0x2LZPRdoosGJIcW4JPo14F67I2lZqv/AFDU6c6AIXXZC7WMuzfnQLRoVRMI9jLpWdQQFF05Jk+QmdCYmliqa9EoytE8hGpG4kpHYYkIvIqSkg2sP8ESyZEmYwFIwNYX0pabJPRMt0LJYLEYnDmbmn+jzDWyT6JXRRG48I75hUglg1hyQ9E3Y3do3GxiC7xYnU0Se1KIeoYv6LkoWRsPeg+lAvQktWJYmdHwFuBTlOL4dk8ZBjUlBGRaFvaPEQikiRUgbGGPIfax2nAk6iBsQpqlEBHCNTLi+i7DysAU7Qh6eJ/eAq0B/QJFD4iRoSW85wYrjPBb9Ht6GNEOySTQ6kOJ8Hw7KPwRoF2RTmmmDbaCu3AoD64aqWPLD+cQUkKJUeRGgt5iUV9C2kMKM3jGFTHZyyKiYQgvpN8GLu2N8GINPBqXDgsrKGiJSyQjc4WXwWxpX2GLLGuC7HRs2xWxKogajTw+AoaWMQMPhbLBLBRKBskohhoZ8GwBR24utharkV0ElQ3IigoxjEqCFSJExtJIHXzz6xlc1s0B0EyL1qkLWi2KGoiMkDzGyS7FoSNcmw4sNEUIJERhcExW8qZ6zBiaHlCyaG7ex6Fhc1sR2KkFBaxsSUuEWW4EiybCoslJAimzU2LwXkXCMSN4sXNJvMUgIIWhB1pVwXPsukYJyWDsHpGrFCYmPAjICQYQ3JULGUWIjUtJMPQnWxCfCBmo+D7RqENnApMUSLD/AEiJh94LL4zqHaQlKoiS56DUGJ4h/YmEA0SMCMlRsfOxSFM0GseiHskFPCaJJHGGGx2F0VQ6BxzhdBQns4LL4z9+wVjX8FUMz6kMklJEaEoH1dCdhl7J1WCghKOJEe4yiBqCRsnKRcQDDZqbmrGtKYlLoSmRKUdse+Cy+Mj8ZIhqJMJq+Ideyp2KihMj2Us+amg9Brw3QqDo20hlEije53JrCIw0RKjQF9s+4paxeBxhmhZi1IiT0KPQ1ZMM+ZQ+C59jwCn/AAoGyBp5E8NxglChSDwiRjaEsbqGsfYi4EYI9BQ1CweBsVIMcKLJxYJGG5GMEJhI6wSknYkH7h5X4Ee+BDsRKhHFMTMis+Brw1YkNCE0VaGtinxISkWCpiUNKaEtbJUSThjHo7NgliRTGyNaOSFh8UdB1EoH3R1wHwWHhmXT0NUhDSxrFYgsrItEvRATKO6D5CCEsNDFukl36KVgnJsFjJVhuBCl3HswxcFh8UIWKj02GwQs0GCJ2IaNiX2RECXASop9C+ghrEnQiRgv2UGTWUkGVQxhMXB/8H75FZqaItsfU0hve/wLmhCxFhqg3ZMJEEJDWzcsTGxNjrC6A6PqYnZTGdiI1gm+xN6T9JjYSvZMQ2h4G6RKBP0Ycesfo4eZPZtNI2TjbblsPEZWFzQhYZ/skXL06sgTIU0QMGSbHtwQF7kkkWrRNCQhUrY62kIboFzbYggN/DSSPYFKbPuMaKipkmyZrEkYHDydDoe+NsrgvwLK5oWFTTJYOzrgq4HlYKW1SUH/AAgdNEBR+1JBqI2aVBllWOUFIuVDDPsJ1pNUEQCJ0h8ZHVZVYQY+0iSNT5hsarO1HyeVhfgQsyqvCxpAoNsDjUN0KHjsRqFQTtHsEzsCqlE2IpCFMigIXQiB6iyVaLNCwhDTpDDwaBMsIINh5RbHtcXwQh8lhZhBKiRbIsOSWRMEwiQ0ShF0qEn3/Yk7SFFY7ZMgQyoV2SPQqXWJEeCDqFIVFg8r4bA0P8CwhGxLisLMiIrEhMio0+GNQg9hOgu5ZcqGejzOiQIpHgIUJJESLZENs0h5w7JL6Jf9T+IWELHzkhE4VU2fXDSQMVoSGPiRujsasUSfYiyRdvJQbgkWiScQDN4IaKk4bglROiZwvPeHxQvwLEVm6RCPY8oqx6JyKiCgLEgzY/cuSThODUVkrljomPCJ1uhjZ9k1Jh/hWF+BcWrCMZNg2KF6EGhZHDQYQG2GxIlwzg+QEG1Def2I3KKbj4PiuD9H/9oADAMBAAIAAwAAABDxHwBCzyw88tDi2u105owmckXzyhzgzxTwBDzfiDS6xdv8N4S+h4Op1X1DTwD0TwhTugLWQovhMs+r1Cd71b/NjHhwARTyj71cdUiD54Mz76hmMqfPwHOLmwDhTiTQ9/ERspwlfOVP3XH5R9+KbK7RzBQFBZW4CqR/reQLVRlIXVKzAiHv3BwhRNS5scLMTqKWk65FAD9pQQ+aP2Gr3hZoTNl8AHgXHX9SEGMr16uVub3u4CkAz7AHwzUqHVoM4mEnlVnJoreIyxg2wKlYmuRpnBio1WtqYX12GEYBDvL46u1JsFT8XXX/AJRovpnpxAJPgTYBCqO5H9asEhFy2VR1gk95j9BJTZRa09ui0hK9qhBokU41JBEFLZzZCNX/AAaG+jQwhv2H/XdDsXFiHmdxH9h0VhUQa2o7jOuhCaCpUiaZDo8TYAL+cSvxmo9dlNT5GUbAXe5o318zhYwaRvew+nOQANBaMjdZk2fZ/iVcmzfDWSbNQiSjgj8FfuFcFl4/PWoO02Shi5CRAFEz/wChdqE7KJoZg5Nz15sxct9gFh8opqAgO9BYVEL3bHj5HAyAH3DGM610jBRnvPIJXnxBHjwQRSMQTR1zLpycFkihMBGGzWUGlCifgtRRdyiHUHYUwTS/vcqsRhRdfQe1QU/p1XHSh/jViTaNg5KV4a9dUwAsmm+FmXRSjiJ8U8Eci6iuWGAxTDOhEVbdhjgVzzhQC1LDUilV5kVCDX5e1YxHyCCrw1zBAgA7DbVpXaG4WutqNLsbR6g5bXWhAgAABQg3xgSeR+QuJ3mvMq0jzvNWxmRhygARTtcRzRwFm7Mf9/QFx22G9zGjhiSgBBD+QEDCX3rwJrn5ZqCOmT11wLgBAAAAj2dJjTChHDhJ7CzRX6eTT1gACyT/xAAfEQADAQEAAwEBAQEAAAAAAAAAAREQISAxQTBRYXH/2gAIAQMBAT8QJ5whNIyhMILjV9jdE/aYTM/2NFEhEyCRCExDRj7UMTynkVCazB6TE/guZBlLlgqIfcYn5Ez9CgSSDD6IaF7EUuI10bgxr6JwVCQ0aZAa80rglPRMG6UWvPPiavGNQaG9Ionol0a8YPZJUo4QzGBD/gbLViFoaOhGPgqcE48TPZRYXglRIqxuMp7jWECIg1Y1CKCKQaMidDPaI0sImMTo1qVEE4khukKiCyeBdILXMQRBnrLjy9TFF3JK5No+iU8XlIqMJ1EEhs50lTpBKa4YkWUpfCl176DEsXBoaoTEE7R8KLhR3xfPCbdp2hi2VbYwnB9Jj3L4NXyQ9Z6DfcPKkfYx6xiF1cLvhcnhfBjRDHrRsue2Whc8C6LFcUpduXb4euOFtP6GQyl1aesxSEIQmTLlLnqewnMcIpcXwXRDgThdErF3IPg1Q0EjxSjVQWPLhlw/BKCFG6NtDRHTGel4Uw8dFwUQ5Y2Nw61jLiYqUjpCY3SXCmxcwvR7Q+DVOSPQmLGuC1kwv5rD3lWPCJu1EJ+8RGhLgxljh3PcFfeSoVpiVjoXR1sbo8olViBKCV2ERCDRCDwqf9Glw1MiS6YFtj74cNGqfZiFy+MyFRRvGxCdEcR8Lj1qE6N6Qmm8J5zJjLi/NWFnYxMet0hcHhSZA0IOFQmi6yD4P0fdKYxu98n6w+ODDZSlH0bmKIT4JlIUYb4LrF6F/CQfk16hUCHqGKUpcdDEmxiLojRjeER1jXN/hR+QXBdJiRlIcRz4UYyiRYN0Y5+EpSdOQ/RPxePE2ijRINBuslz1Eysh9w6QSbQtMs+Dyj/B4E7tOl0SyTsSfSEhBC9C/wBxBR/T3GUf48NQsqJ3KOy4Rg2NlKNlJI6Qx/lD4scuMWUWWUyvKNjfCj3h/QbH5f/EAB0RAAMBAQEBAQEBAAAAAAAAAAABERAhIDEwQVH/2gAIAQIBAT8Q/ClLpBA08BMX8iT97hwXIPg9pRYRe6F+dw4OzrU8EQo11WunfKf4twcDkrwqBuFG7hrEJD+6YhSbEsX4PB0TAlB8PnysPmKLolwgg0MixLQvTRFBK4Sg0Q6LLlKiME9J6Y0QeCfluHaLUCA1lZdKVjbxQIoKz5xkOGchbRh9dxCRfU8QmL6W2xC+j/wutwbDUE4Wy7CE9ztwbo3HiEunDE6Ibgw1SDVGoqN3xPM9fZT6xODC++RCEOVs8Xw9mqNawn3wNUhBqDxE/B48mPC+CZBfRP7t9IQg1T/HuZMmUvg/wTEhtTw+HbJkyeJkHzWz71BJ4THwYbryE2lIUpCDRCH2JYgkQSELZhhohCFDU25NmtGNUNUkEiEF8FtwflyCVFWhrUqLBqDGQX0fmQ5qFrccGo3IXSD4Po1D7pOCVGGGsX0+BC8IWuCdHpcMIjr+ZppoQJQyaPo3SHxj1ELg87BIgtaQKPBOHcuIpRMo3icxRiOilO2SZNSPj6QmJ5nlRWoWNn0anv3HzJtyEFIMhcWtdIJHwo3XBYi9MXY9pS4lSFIQaKUpdXzbILzBL0pMhCYnDhEKHBrpRZ4h/NZ9e1JCxnDyiyZ0pS7CahrmJVpIknuEOXkKQomzITHkEK+h1/RR4vn4rVfDBo9bEKLpODKjeLOEL80E8XEZQmIKobjxLF9FiFs80uJU6Nk4PnlMu3IQXzGN8EFqY/w6VCeKUpcfhYv9f4v/xAAmEAEAAgICAgMBAQEBAQEBAAABABEhMUFREGEgcYGRoTCxwdHx/9oACAEBAAE/EPjcbj4vw7hry7lSvJqA3K5YhfEp6iGGLn18TGdOZw1FS+pjvcWMDEl01M+K8T6yvIxawJANZvqAcj/It6jTjzXcSiG35uZxCbfIPfgxvM9PFQ18q8ZeCVBpct3iC0dzLTuVeFepUwSz3LXuDcmfqGzTZ6jBxzKDW/qZFKD6l/hAttKl63qAvMS0NwTDLxB1xHyJ2QhxMOPB1NLfzINl/Azj/qajuGdeKHqL1GuIULpDcEt30ipSNh1CooriC6AmsXEdXcsjXMIsCFd1mZwLYIUKiuoO3DFQrQONtRsU+kqiMcTAMEs5uBKswhYuCCgzHc4/UsdZTrxEbqnwS4lfCvgEd/Pp8do7gtaJpCOJwOOfEKyb1iASiWfPJHKA+4aA4ARfLFbw46teziJ1thGQmaLxyQgAQfUMO4ZTcGoNV3BVkL9S7DB4SxRp3GfrRBKw9+5VQn73LwAuJClCU0rJLRRYeIAMNcIKF/uIWFv/AJHGuYlMS/AV8FLqZrLOGf8A1/1NeboTS0PuAGmYNCHFR2ltghBTzGVLwQEIWqUisbygqaL1LDceIRZfsSsXUKxLZWYah1qMCdxgtv5Gs2/UTOjT1Ll6THSY7jDTE5rV/wCxoW55hACI9u2sTt/kNKYhVbiS307jMMnqKEU/8AJt5t78/iceu/nbLqYpRYLgrT2mooXtyK5lJZxDbimolAEWfWWm9RdtajduEggNiPecGYhZaWwAhsOIwbGVJCmqjhlNHe41S1MRi1a2/UtBfEBZWLjcC+4yqtqMrSODSoVM5NylpXjdcS+hmI/qOMxwtjr3LzR4QiB+MdbzFDn5m3n7w7PgfFmc9TaZon0mKhB6to5lv00qnmYIuFoyRSwOiK2Dtl9ndBBMGWCsNwkUFy2LlhW0ucJQRqtxChFMwKB1Em1K4l6puZRvDXIyiYtL1Hd3ZMIR2zSnDFQH+yixzU5UTgh1TiWvkUZjZshixqBlDY1MArWZQWv8gI25INGKrnuCqQXKpnBOPGn/AC7TebP3OVviMpfAmJQGjmCQSlk1heEUFr0cTHjG8wulKjY3lAi8xqK336lo2lpTDMTPEUUWMuYwFxIYEdkVlL0sNgLTABhsmKpyDHc303coH0lY0bhEwv8AJfsi6YGrljW+4Fw3WolqIlLKZogb+5c2/wDqVBfyNkxcwcILvUrxfCYTNs+od11xO8KvJcarD+eW3/TYMOmmc3KVezR9rl1CCrbNxd13m4QbF4glg0vEYyblqe4KpQHcJFMNlozcrbFQu/1DSYYMcbXncoYVMQCLLcd7hr8m9VAEy2QwvJGiCIRrPcsFfEdy9A83HC5/9jrAOWDiNMVHlGplH4mmw9dRlXJkeoDxFvuBwrqBUFNd8xhv6iEyvnqNg+/cobNSqZVkFeNvG3z6+MGYBCyaLknK0zCceN1HV3a4hOy0XGU6vURzuO5dmOF6jBcYLNu4IJzBB4/+wGsVGLG+JXdIivBuAqqjF9lBUVy0dTFQ2RcvTLqdYiL2QQs25iQ1Wpk13/sONBPsh0cItnSJ5EvVblGG+JV0fuGcA3HBsGSIh1xMvtAKR0Sq/u6gsMlYZeHUoUql8HPjt/wcXiMmNifczCyCtC2dzI/WlOczcILy1LR2wu33FrslBOFh153TGgQnuLl18MAr2CApgf7KIdGodlaMSklk2K1UWYbg0DlBC7BzEsisS4WsbgpXMJvhFLhX+w2M/sqVDRxHWZhFXNOqlq1OtZDd1wA0D+QQG+BNZzHTVmC4qsqszrTlybkuNceM8TPM5/4OsNXNOX7kjSR/kMfEhj2nJP3wLQRiEEEfSzFlsycyQ1AN1URchCqYxd6KhcVe31BtNjJAdmoVhtGummJ5IIWRiBBU3ggzRU9KuFDbEO4pjdYU9TdNJYrmoq8FL+xee4EgXcqCKxm0MWQ9FtSxf/5h1Fnh7nB2Y9xrmhysI4p/I8KuCn58fEJ8lTtrI+JmtAzC1Bg+o7VZ3fZKH0S9hqEoIcqlHxHMBdSYFSABIBLqNuM0qyoUkqioPaUGSpvMO5Y2EHhnKmQrJUVdWY6iRXWcdS25UFpyglapYixdw2lExxLRiEF/aMQ1gwC2BIN2hA5BmekRhH7dSsVbxKWVcQTKx1KG8MclaixU0l1Lv/hhhMsEwYtO6Zh6AKIRIfJlL9TsYSgQXVffccX12yhZVi4bAVDDEMPKpcppTjorGIKyRClVB2RACCqV5qpbFLyhVMVHGGlMcNlscQK4AdVKxXU5AxFsnGIwlVM6a9yvLXL3BQr8hUK3zEzcVkdQ7iWDBpCumBdt808TRw5j2IYjY3ODpg8eG02+PQfbLYGZgRElhldvBKyKUquiCJkXnqNTqnMVm0P/AGJyZFSupcbtt9ExoLl78cWA4gp8FjwMPAsQxhy9QbhIWmcTUoZiLxKG/FXLpZ4zRG0QMkCuMoU2om4BWYoqi4YDi4EBogDVb5YaXExNsAj05Q9oXqOWyqObHm4EBNSjLfET7Q0+G3z8ZH80d9YwzpH+z7RmHoXbl6jhtVULNvEiJ4NzUYOYa2Vrw6mjwahqZTJDCXS2FLZShaV8+04hsZaSllsuiaizJ0StFVAk/wAQBppinUNBjYKnQpaNBuW0MIb4wRduJbBRcwKVq9+G3yHfnMoSMzcSvaO7sMdRpaIW3OJ+RP3y+4Ly1RBJbZvNCG5t4O5tNoWgUyvMAaI6VKbY7m3wKmXfh1DZDRE0y1+4FU8y5P8A+pUzWJap7CWLktyoOpcZVSkaoO7sepUvLVPuBbgHiBQtPEVwon+S8dpmo1NyGmbfHbRKC22xhlrbDpu2VI7Q8kDUXsgn3MpogV73/YgLRCAaMfCySqhqWMFMd+N0CiUMVr4Go7jqE28bTibMF39xKqG5s8eWtu5Wpm8S4GuJ0CLIfUNMpcaxcqF31ESAWyPgZbvslvkpZKx6EVvd7IoyNLm82m3lEOkf+cT1EM3e4hDKY2FoSsUtCKBlJBeVa5g3NoQgwQ14mvM3CxcyQWDqACjXjCZTUjo8aeNvLrwFyq8WsVCSgPIx6BMMUtgwy49DKPS2sShv1cN942IsYUYTgoP6SIzgzc/UbypfKeobOM+baOvIQwB8BkP9IF7q1ME0kqfbDIbuXIe4v3IBno+EY+NpnTxGErAoqaTCK34Xc2jqJfglM2mnilzBuV2RY+5fCinBARHcaLnaIocl/wAgcvVH/IPUNywZpKEKxmYZzkynliZgJdYamrZ69RPsmnwsth2lynEs2rlkQ3Do5m2LYHSFEwDMLFjKaN7aIKdEup8JqcIdm46BNamh4wgozEF3Prxd+NvDubTaaTaaQLY7N+O7EP4IJQlCvUuXYVKDNkuMbYWjVsCEOIK11P5blV0LJU5fNcQ2ZQpgxZofHAijiWu/UVgKejFj28VmZzeIwxwMEKZ8ys/DiVoGPUpipgZk+ZqbRBMkMJkl/DZi8GE2XL8bTbwTqMCKlitPuMItr9RCjuGMHc5OLP8A2XJBUPSrmAV2ShnTFYn7K9j1MbaV2e5mlAf8ijOCcPMw+y36hnoH34xVmbGCIA1FvB/YlJfNQ1icfObgYm0wmAntiVqF1LlxW9st7Ym/AzGXUu5tNJc0nEIQeYrZU1zFoI6UofUlra6gzXIgj7cslnJXMR0cwXHLBCB01KksdS7KGbi8ORlYDH1/ImDz7vP2GGC89wmYpsTXuPe5SKIaVbcwDL1PtOPnIsIRkgVNCbfB342nEpe4lM2+B1GOo/8AqZMW5k7jUC4mFg/ZWwrUG71B5PEy1VRbmoFH94QkIvRdtTUFIvPNJACq4KP0GLoXEFPw1yQ2Wd+Jl08TFFduYy5NxnHDDRfXjtM3iM+DuBvwGE9JzuGppDUDxDWfDubeHcdzSG334JqND9i83wULMxsa6LQy/PiovSCUNNdTOoKqziaztzjegoZkCu0ALsuE3cFw09CUu/hBuBukBgXdcwU+DLPUL2xG3gp6h/M4p6T9EzvuYkrB5uLM2Jw+Aam0NwMR3GjUu4Lep+TJiKvyioF2lVvwdeLBOR3LqwaJUpSV7jPMMUHSIZmLEdiZmgRbTZlbmWN0Sj+CAr5VKZwmfcA4tkCwtGWi7OIrCZuptucynr5bHMMWbLcSyqJZepjC5kzbxsfFXgnNwylvBzlVA8jJFXGxguaJxEWJR41TKliufuLUu0soQxUuazMGHY3KIdAf7M3dVj3AtaxJR9NQ+YtJknLJMWcRbI+jDBGaiq6V9RRjlxOda9wm+biSoTolGERoS3eY51iGHMVqEOEN2QSo3BBRjx3JvLAmMWYalRBM5UdzLxQAih1FzjwGz3BnMq4gNSjqdWIGG8xVcds2QWvMZnBuZPnR6gn71coKrv8A/UHIc3HrKBMkeNTZ5LEy2kBbc3UTfNGitEhFeTmMMGZYZv3DWJz4ECjDGTpLTUouwK8ThRhhzAahlzDMS8eAZjKTTZ4gDiYQxg2blHMyVeIGtwCGO5a7jlKeojxRcsdxacLMG4s2bmAyy/HgvL2zMesQw7EGU9zKHbMxcxcmR74mWrgiKXqWiaAtYDuVX1PvJQ3k5gtHMKjmphVTS+ZzLZtfMUepRdyicVxFWMVTOYlIxTTiKfiGGUDEKjOZQNytMrHPc+8M9wMZ8MuZdAcQwiDNwbw4n3n3i7wxXLDHcNMsRGkxElBqZUFKawkgRMvMwkupWU1CrLUglvUtVu9XKe+G4lZ3S4FEuC5kfUXKC5ZZctcy/EalvizyIcv8nHqZotxL2FZlICGksT7mThlnwlWBKlK8GAeSZCBsGZcMwRvUEwCxNYalXNzJhxPvHPccssCtygZYUX/EYb5gL0hU5io8wUcS1ucpW6mblEtT3CsltTAg0HECH3BsGFliSpJuqx3BqOahQ/UNdwJaUaVKBjEyMzSG64+GEtm9wLHI1AZf5LwDHUpKf7IldwMbLbWoFuwQXKV5lLIPUwq5IALYhtWG5QlXF0qLeWCV3LI2zmdyKbYmK1hrkm6H9mXA/sOKf2ZAp/Zd1HGydVNIcSwblIwlkNrLiCK1ZABajqFs+omktpOIezkmaIruR4ywQ2zfogo3cMajncTMtgjZ4cx4eKKqv3GBRa28wy3B1MBqCkQjhmfYmyCLYhBBiUmoiNIZm2x3C4RZkBuyCUqwDpAp3BBbK21E1Kz3EYiVHVDzHtNfcQpa+4fJ17YlBQ9x9mwkFbalkOpeig4QxY1KFBmkzXozM7thpYlgawx5tuLVwFtwitGCLH14rJOEwGoagw+/D/PTubeFvfhJqOsJHTG6EGkiVfEsXUEEcz2WXjcw1bMlaDhgALVxtlP3Ls2lwQ3U2EIC4rG1S0mky12wIS4MeyrlANRF21mDZVuG7UBDzWe4Io/iYWKhABCOVnEFMs1LjELM3ENiDh8kzKB9lywjqPIzsi3cUuXFeDcNTl4cH1Kaz42+FDZjOcJgtly66iehtmlA5vcfCOomhFNsFHPuVu1lo9GwYdbbk6giBiJGYeqhtrXEamJkLrMEQ3UEM6ZgXL4cWJc7pRbzDKHfMcqGdymJuF5TUeXbDOVvUwIiVUbkPWLhrbhJhF2R6M/iRUksgZYbGvqO1e7mqoM5jiY5lCqlCpSrYPkKPrmemTuaS8yiYa8ZFcTQr9xTLh1BLUDYdsdcBMQhkicypRiPcxC05Soa07BKFcHZDQyvLiKpYNwnZU9kVDUY5Kuf8lYh+oQN21KQG4l1ZiVdRVqRiom4cVEwf2I5MFl5iRrBmIChoJT/ANVNymwe6qYlhjRNpf8AIRxkxkN5jaBzGAjBVLloxp9OIC0BhEa2RlO5YxzE0wvGo9ooRPGdL9RiZlELrxhuaBvUApQsQOgb9xFlMRtbGYLyIW7alpM1qMhEOLWxLyKzHlRGQsah7UPUWSz0jNZ8FMECtM+pRqPIqV4JbqUdL9yhOErAEGRKrjcVEMyquFQbTQxmhLR2rMq4wI2AFQ1UQqVWA2cgwLAXqMSM8RI1aVxCoXmK5LCJQLuNSIwWaxDaTHqdYbjRvin+xlaGVORlncZeWmMxsO6ogxMtlx1HWd+HO5RB0LiUoU3G20cFFVqOVnEIVYIBUoIafUNv5IB0oD/siOG+q1FMhMEP8lMHRqFpIv0m1UvrEDCh+wlqFDjEIggJqlREJbqZXKgViNoYjRRZxCmKudJlSjofcGkqKs6qIgKwbJhBvomYd9yvMxGhp9EcFcsVUAZueuoaQbFxxFARV2IujKwj2j2QnGGUmATGgQ2LuZ6NwV3M8Fz9z1NlzJlstlEsIswu9zMdsAKTEVbwSw1ohGMtdLABjtpPUFaQxAALmCNykv8AlNaK5uKD+yXjt8hBRU4SoKZiD7iXNRNJWzLXGGlQC8uJd8vyOBQ+4MCz7mnrmRTSU0Ze7gVWwTHQ4O5ngrachP1DeCwLEe4OvbmJWOZSb3BRTMAsblNh0lIhimHcINfsVlfR3GDKlT6hOZig34Zt5tgXlAYVqquoBEQhpxHS6jyNx2URUZtbmYT/ADiVo+sxgCWvqXWm5rcHKJ3ULY/PESx/owgXDmoBnVN/BcyJJuJbAb9RFBLlr1FmBhRSxmuJSBV0SmEt9TDK33LTXq5RouxK+f0S22K9xRweosQNOYtN0gLWWXiXGxmCyBKIO3X1MupbC6pnDIxUwxeeDcoJsMTYhj4dvFHiki17VKZA3IQS30hXA7IkEGDwsDRqLQuIcpc6Blzcjqn5BYsxKDBKhvUVXqLbAtOJuS62DGZveoAus3LUuVxKpohHWIxHB1P9RzG/YY/2Qlf7M2T6wBpp+omZZAstxmkIlTlDmjmUJc7joHGJnsvDWY5plMBzHVRWP3E7QsNXz8e3zRBOHGcwGg3L5rMorWiEIVFYWcZqqYW5mYXK9EbyhifmUCpgWSsSyAmIgM7n5JS2IX1HGQygeLEWzhUrGJ9E6oJmoPASkABZcFzWZqiE21NKlSuKnEdPc24pI7A7jcAVXfhFA8eNcuUAjsZu+J08uPHMo854wjHG4xDljohCMqJxGBcuTuGqqJqLUSyr0xE5JSykuKsANMssFtw8IqjgsaZqJsI3Mu0IiDmZwdSsNxYm2AVU4qAq8y2NMTF4rCTkIW4y4WahOUqp9IMbESukMxAXol1z9lmLgaaxrECvjSs/AnGqusRF3GSbnmDy4mIEs9kAMSkZDmXZBOZh3KCZlhBlxbxL2Og7l2ncRQpUcAJC5D8mEjv3LNIGTMnVVKVcpoVQhwixYksMwpmKjvEQlzEmSqWFuLDcAkqXL0cygfD4FMJMx1MT2hIA9oSo/CKYFfLvLfOm4arVhC5Y3AmvGaGUaZge5UUzwZyQpGuRlJqUrcEu4MDpZ/MgHWOpgQy1uLZmpSYWKL/1H31mPzAG6mwuGZMa4cRkDGBbcrZxDrGVIkPgjbKMQUJm03cFWnUBEbmFI1gkBiv3ERaUQlryi1L83DU0078K+AsKERZV4YuzGNjZGKvqMp6lAH7NDPt4PIYgl6QzRXiAxUldZmoJqIksQbSolLXdw71YRQwpFUWShmV1j6Y6tnqAS9MDDmUlpSRxdTMrBonEAENi0pY6UxFZYPcwQ2CMRlHcCx9w7TdQte2wWmalPROpmuanYWiYLuLcNzg8Hvxp4uX4PVEaGSkuX5+CdLMTdmuYYYSncrWURo0izOlzMBHle4GA1GEtSrxzqN2lxbzyzOMtR0cyu4oyR2/Y5Y3AP7N6RMbS43M9a4Sp3UJyo2iUZlQEiIKEgC1PRmGNncFNzAsVvMWfUzOoD6oDqoCKhYpcrgOYAZgDkqCnwbnB4cQjLleOkRQ6bhMc4pLNioCVcLkGb4jxHMS3ucpgAl8RBtq8wGpmtwKCrdxzln3Kew6mfBVTKwbh9pogtCiD6buZRQ33B1OU2D+QSqJvi5eIKYigQcR2OOpfTYhAdQawxtGWZqMBnLiZNTJbjjcHqZmgnKHkhGQaI6rbkrHMFVUK8uIRPhzfioo8asxUvsgy7j547uAuOhqZBFAmB+piy7cSqMvFtzBDSNlBstlz3E3LVsMxLzlzoFxLjmKBd14qXVRlGsx2KYmOkaVFJWz3BSORxmWMXZkX0hbNy/EskVmGYty5EM5QEgMwZ0jAYMy0V4Ixag3ApgRRXiVMDxflwBhivcpxurLYyQOTUsJmphKc+LmF0GID2VYcweoQLOFMRM1y4j1i9S8eEtoxo1UakLGx4AgahbDNxDDGwmAYNumEeWIdi9y+hGGnE0hmKVE1GC3MPNYQjeGCN26hZX9SqMKUcRmtVcqx38AYYmGYOYTTK+Bjj5N9z7WOdqYdxSpCiaiGOgiXInPEC1ECfUEioBVLIXYCOCyd2UC0lBKWHNi4LZF44Q2KFQnOYLqqhlNQLLtllyVEFIApeYtysDO4zyiXAzDGMpmKyOQillvCZYDVU+oTJNU6i5pD7nUDKjCiq0xUJu4sGoNwPBuJUu3Mv4Pz3C3d7iFpmGcMcwyTmTKCIFIQgutxWsnUvABUqTZuty9unGY1La9Sktp9ylh/s1E9QhTGM7OyN9inqBcUli5D1PY3AfU1SAMXGChZbcRQf5FLoxaVKukuldxXaOiU5WFuIGsqYbqQ4hNfiYvYryxb2qymKl1EVfMqBXkqJu5g7f8Ag6iFeQxJ1ILQhZMxJa4CnqCKDOo4DPmHKqH+wQVbCUtH8gItlqQsAWobjFUK1HdkLcS6VG7JhYOiCatTiadiNQLpV9zPr1KWmjH/ANIhln7Cb0lc6QrpmGDuoZRqUWZQZ1YKHuEKirc2XDklC7i+/FnMaapcRaly4vBqYUxsFHfxMeLlxUjlf5AtshTCB6j1SWlhG3HFw1LgzHd6jgPDmGeLdoISlvEGS7OpcpS5eI7+FbBwhIKFbEEBdqlWpddQBCq8ktoB/sO2VrOIHChlNVmKU0OpYMvqFry+Lh4iPcAFHEQXGeoiYw6245mTLbAtnEOkvNOahqKUNzJu7m8eMw534/J+fEG4LICeone5jv4GY/MxA5RRYngqDIyLL9mXLXEN8QHM7EsQxFqeoj0OAz1pxNkfoywmGV4J3DlpYaoR4uUlgPTDICprEf2Ldv8AW5mDFwlTZEKW7Sq12ppt+QVBgQgiqq6gaUzLpv2xDW3Eo5ZYvEqaqJtgW1gURFkWO4IFgv8A5Om/kC5rwdbaJY3k4g3uV7+Ix5/+S13dJCS5gElD+oBeJiVKKJjmQzJOolpBkVmFO04h2oF+os/YYitlWKUpHcc/+lVGr2tzibdY1DoqWLFkNaNPMFyLlm6/2XfUy3Hs9xqWyx2rj8lRTjcX2irMebgowko7WYmipsziceFqDHySZxZyXFYwWyviM+Iq6n/kZbuqOSWwNjKw3bBAM4hqYCv3MGUtQ2qZEsWoDrExaD3cEUI+5xBD3uNKGULTMqNBfcbMpfhBWhmFybrplD4mMpVzaUydwXb1LMiy5V/MtOIMFOoeZlVuN+SKlk28KAq548JcT4t4blYaczOeBzL+BjzlBan/AL1Gk4Bu5bPS8wxhtJWdyu+WP3M1RwQiyGtpqXMvHqKlWSBrA1EfcvVF/ksyVdVLcXLu2V2My1UtcfKOUMalu+IYaeJSTBwssYWNlg3MCC/xm55i0zbVQ1TVYnHxV8XG8tfENQbm3hWmGg6+cagOW5f97l5uCN/qHQzbMFuYSXWGKnMu7Rq5iE3BPyJVH9uYhv8A2E6WYMMMLWoV1zHETNwGzTAl2P7M+43bWBPceUziV3KYzA3GpYrW6JgDUZtUNYAFl4ZcGGQbrXcuVU4+M8TPMWot/A2wKmkvFVD5YQzBuVKnBgw74Vdx0L+wKMxBswt3FwG0NLrMolZqZUEYWKSqcygcQcXWe4J3iCOWJ0ZIEysKSLTiaw4SncPhlVAAGGPgnQQ9xstvRNszjuHaIFdNRZWRW/8AB9xA4g3MN6jhqYvkT//Z" alt="Portræt af Peter Nørkjær Gade" width="480" height="480"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Forskningen bag</p>
+        <h2>Fra automatisk regeltjek i BIM til sprogmodeller</h2>
+        <p>byg-mcp bygger på mere end ti års forskning i, hvordan bygningsregler kan digitaliseres, og hvorfor det så ofte går anderledes i praksis end i teorien.</p>
+      </div>
+      <div class="strands">
+        <article class="strand" style="--c:#ff7a3d">
+          <span class="yr">Ph.d. · Aalborg Universitet · 2020</span>
+          <h3>Hvorfor bruges automatisk regeltjek ikke?</h3>
+          <p>Ph.d.-projektet undersøgte, hvorfor BIM-baseret modelcheck sjældent bliver brugt i praksis. Det byggede på studier af projekterende i Danmark og Singapore og to prototyper, som praktikere afprøvede.</p>
+          <p class="tells"><b>Det fortæller</b>Teknologien kan godt tjekke regler automatisk. Det, der står i vejen, er sociotekniske forhold: brugerne skal kunne se, tilpasse og stole på, hvordan reglerne er tolket. Effektivitet, gennemsigtighed, fleksibilitet og tillid vejer tungere end præcision.</p>
+          <ul>
+            <li><em>Ecological BIM-based Model Checking</em>, ph.d.-afhandling, 2020</li>
+            <li><em>Practitioner experiences and requirements for rule translation used for BIM-based model checking</em>, 2021</li>
+          </ul>
+        </article>
+        <article class="strand" style="--c:#b18cff">
+          <span class="yr">2025-2026</span>
+          <h3>Byggetilladelsen er mere end regler</h3>
+          <p>En kortlægning af byggesagsprocesser i Europa og studier af, hvordan nordiske kommuner faktisk arbejder med byggetilladelser, samlet i en bog om digital transformation af byggesagsbehandling.</p>
+          <p class="tells"><b>Det fortæller</b>Byggesagen er et samspil mellem regler, skøn, lokal praksis og kultur. Digitalisering lykkes, når den støtter det faglige skøn, ikke når den forsøger at erstatte det.</p>
+          <ul>
+            <li><em>Investigating building permit processes across Europe</em>, Building Research &amp; Information, 2025</li>
+            <li><em>Digital Transformation of Building Permitting</em>, Taylor &amp; Francis, 2026</li>
+            <li><em>Exploring the sociocultural dimensions of building permitting in Nordic municipalities</em>, Construction Management and Economics, 2026</li>
+          </ul>
+        </article>
+        <article class="strand" style="--c:#e9f0eb">
+          <span class="yr">2025</span>
+          <h3>Regler er sjældent ja eller nej</h3>
+          <p>En kortlægning af, hvilke slags logik der ligger i bygningsreglementets krav. Mange krav kan ikke afgøres som bestået eller ikke bestået, men kræver fortolkning, funktionskrav eller en henvisning til vejledningen.</p>
+          <p class="tells"><b>Det fortæller</b>Et digitalt værktøj, der kun svarer ja eller nej, giver en falsk sikkerhed. Det skal i stedet levere tekst, kontekst og kilder, så fagpersonen kan træffe afgørelsen.</p>
+          <ul>
+            <li><em>Beyond binary compliance: Mapping hybrid rule logics for logic-aware digitalisation of building codes</em>, Digital Building Permit Conference, 2025</li>
+          </ul>
+        </article>
+        <article class="strand" style="--c:#59d2ff">
+          <span class="yr">2025-2026</span>
+          <h3>Hvor godt forstår sprogmodeller BR18?</h3>
+          <p>Systematiske tests af, hvor præcist sprogmodeller henviser til og ræsonnerer om danske bygningsregler, og en metode til at benchmarke faglig ræsonnering i byggeriet. Resultaterne formidles løbende på AIBench.</p>
+          <p class="tells"><b>Det fortæller</b>De bedste modeller svarer nu rigtigt på næsten alle spørgsmål om bygningsreglementet, men forskellen mellem modellerne er stor, fra 86,8 til 98,7 %. Og ingen model kender den gældende lokalplan eller dagens registre. Det skal de have adgang til.</p>
+          <ul>
+            <li><em>Evaluating LLM accuracy in referencing Danish building regulations</em>, CDVE, 2025</li>
+            <li><em>Benchmarking LLM for professional reasoning in construction</em>, CIB W78, 2026</li>
+            <li><em>Byggeriets AI Benchmark, aibench.dk</em>, 2026</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="lessons">
+        <div class="lesson"><h3>Kilder før <span>konklusioner</span></h3><p>Tillid kommer af gennemsigtighed. Derfor viser hvert svar fra byg-mcp, hvor data kommer fra, og hvornår de er hentet.</p></div>
+        <div class="lesson"><h3>Skønnet bliver <span>hos fagpersonen</span></h3><p>Regler er ikke binære. byg-mcp leverer grundlaget og de relevante paragraffer, ikke en afgørelse.</p></div>
+        <div class="lesson"><h3>Aktuelle data, <span>ikke hukommelse</span></h3><p>Sprogmodeller ræsonnerer godt, men de kender ikke dagens plan eller register. byg-mcp henter dem direkte hos kilden.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" style="border-top:1px solid var(--line)">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Vejen hertil</p>
+        <h2>Fra BIM-modelcheck til AIBench og byg-mcp</h2>
+      </div>
+      <div class="tl-wrap">
+        <div class="timeline">
+          <span class="pulse" aria-hidden="true"></span>
+          <div class="ms"><b>2010</b><span>Nordjyllands Erhvervsakademi</span></div>
+          <div class="ms"><b>2013</b><span>Aalborg Universitet</span></div>
+          <div class="ms hl"><b>2020</b><span>Ph.d. i BIM-baseret modelcheck</span></div>
+          <div class="ms"><b>2025</b><span>Byggetilladelser i Europa og hybride regellogikker</span></div>
+          <div class="ms hl"><b>2026</b><span>Bog om digitale byggetilladelser, AIBench og Konstruktørprisen</span></div>
+          <div class="ms hl"><b>Nu</b><span>byg-mcp: sprogmodeller med adgang til de officielle kilder</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="about">
+        <article class="person">
+          <div>
+            <h2>Peter Nørkjær Gade</h2>
+            <p class="role">Forskningsleder og docent, UCN Teknologi og Business</p>
+          </div>
+          <span class="award">★ Konstruktørprisen 2026</span>
+          <dl class="facts">
+            <div><dt>Ph.d.</dt><dd>Ecological BIM-based Model Checking, Aalborg Universitet, 2020</dd></div>
+            <div><dt>Institution</dt><dd>Professionshøjskolen UCN</dd></div>
+            <div><dt>Citationer</dt><dd>283 på Google Scholar</dd></div>
+          </dl>
+          <div class="kw">
+            <span>Bygningslovgivning</span><span>Digitalisering</span><span>BIM</span><span>Model checking</span><span>Bæredygtigt byggeri</span><span>Certificering</span><span>Arkitektonisk design</span>
+          </div>
+          <div class="links">
+            <a class="btn btn-ghost" href="https://www.ucviden.dk/da/persons/peter-n%C3%B8rkj%C3%A6r-gade/">Profil på UCViden ↗</a>
+            <a class="btn btn-ghost" href="https://orcid.org/0000-0003-2584-6726">ORCID ↗</a>
+            <a class="btn btn-ghost" href="https://scholar.google.com/citations?user=npkxMDkAAAAJ">Google Scholar ↗</a>
+          </div>
+        </article>
+
+        <div class="story">
+          <h3>Hvorfor byg-mcp?</h3>
+          <p>Sprogmodeller er blevet gode til at forstå spørgsmål om byggeri. Men de svarer ud fra det, de har lært, og det er hverken den gældende lokalplan, de aktuelle registre eller den nyeste udgave af bygningsreglementet.</p>
+          <p>byg-mcp løser den anden halvdel af problemet. Modellen får direkte adgang til de officielle kilder, og hvert svar bærer sin kilde med sig. Det gør det muligt at efterprøve svaret, og det er forudsætningen for at bruge AI i rådgivning og myndighedsarbejde.</p>
+          <p>Forskningen viste, at automatisk regeltjek står og falder med tillid og gennemsigtighed. byg-mcp er bygget efter samme princip: fagpersonen skal altid kunne se, hvor svaret kommer fra.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" style="border-top:1px solid var(--line)">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Relateret forskning</p>
+        <h2>Hvor godt forstår AI bygningsreglementet?</h2>
+        <p>byg-mcp giver modellerne de rigtige kilder. AIBench måler, hvor godt de faktisk bruger dem.</p>
+      </div>
+      <div class="related">
+        <a class="rel" href="https://aibench.dk/">
+          <span class="eyebrow">aibench.dk</span>
+          <h3>Byggeriets AI Benchmark</h3>
+          <p>Et uafhængigt benchmark, der tester, hvor godt store sprogmodeller fortolker og anvender bygningsreglementet. Udviklet af UCN i samarbejde med Technical University of Munich (TUM).</p>
+          <div class="nums">
+            <div><b>143</b><span>spørgsmål fra BR</span></div>
+            <div><b>13</b><span>frontmodeller testet</span></div>
+            <div><b>95 %</b><span>konfidensintervaller</span></div>
+          </div>
+          <span class="go">Se leaderboard og data ↗</span>
+        </a>
+        <a class="rel" href="https://www.ucviden.dk/da/persons/peter-n%C3%B8rkj%C3%A6r-gade/">
+          <span class="eyebrow">ucviden.dk</span>
+          <h3>Publikationer og projekter</h3>
+          <p>Publikationer, projekter og aktiviteter om bygningslovgivning, BIM, model checking og digitalisering i byggeriet, samlet i UCN's forskningsdatabase.</p>
+          <div class="nums">
+            <div><b>53</b><span>publikationer</span></div>
+            <div><b>12</b><span>projekter</span></div>
+            <div><b>59</b><span>aktiviteter</span></div>
+          </div>
+          <span class="go">Se profilen på UCViden ↗</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="kontakt" style="border-top:1px solid var(--line)">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Kontakt</p>
+        <h2>Lad os bruge den i jeres projekter</h2>
+        <p>Er I en tegnestue, et ingeniørfirma, en kommune eller en uddannelse, der vil afprøve byg-mcp, så tag fat i mig.</p>
+      </div>
+      <div class="contact">
+        <div class="ways">
+          <div class="way"><span class="n">1</span><div><b>Pilotprojekt</b><p>Afprøv byg-mcp på jeres egne sager i et par måneder, og vær med til at forme den.</p></div></div>
+          <div class="way"><span class="n">2</span><div><b>Undervisning og studerende</b><p>Cases, workshops og projekter for bygningskonstruktører, arkitekter og ingeniører.</p></div></div>
+          <div class="way"><span class="n">3</span><div><b>Forskning og ansøgninger</b><p>Samarbejde om forskningsprojekter, data og evaluering af AI i byggeriet.</p></div></div>
+          <div class="way"><span class="n">4</span><div><b>Nye datakilder</b><p>Har I data, der burde være med? Så lad os se på, om de kan kobles på.</p></div></div>
+        </div>
+        <form class="cform" id="cform" novalidate>
+          <div class="direct">
+            <div class="line"><span>E-mail</span><b id="mail">pega@ucn.dk</b><button class="copy" type="button" data-copy="pega@ucn.dk">Kopiér</button></div>
+            <div class="line"><span>Telefon</span><b>72 69 17 07</b></div>
+          </div>
+          <div class="two">
+            <div class="field"><label for="c-navn">Navn</label><input id="c-navn" autocomplete="name"></div>
+            <div class="field"><label for="c-org">Organisation</label><input id="c-org" autocomplete="organization"></div>
+          </div>
+          <div class="field">
+            <label for="c-emne">Det handler om</label>
+            <select id="c-emne">
+              <option>Pilotprojekt</option>
+              <option>Undervisning og studerende</option>
+              <option>Forskning og ansøgninger</option>
+              <option>Nye datakilder</option>
+              <option>Andet</option>
+            </select>
+          </div>
+          <div class="field"><label for="c-besked">Besked</label><textarea id="c-besked" placeholder="Fortæl kort om jer og hvad I gerne vil."></textarea></div>
+          <button class="btn btn-primary" type="submit">Kopiér beskeden</button>
+          <p class="cstatus" id="cstatus" aria-live="polite"></p>
+        </form>
+      </div>
+    </div>
+  </section>
+</div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><b>byg-mcp</b><br>Udviklet af Peter Nørkjær Gade · UCN Teknologi og Business</div>
+    <div>Kode: åben kildekode. Data: de enkelte udbyderes vilkår, primært CC BY 4.0.</div>
+    <div><a href="#inspiration">Inspiration</a> · <a href="#om">Om og kontakt</a> · <a href="https://aibench.dk/">AIBench</a> · <a href="https://github.com/NordicFan/byg-mcp">GitHub</a></div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function fmt(n, d) { return n.toLocaleString('da-DK', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  /* ---------- Terræn i hero ---------- */
+  var cv = document.getElementById('terrain'), hero = document.getElementById('hero');
+  var ctx = cv.getContext('2d');
+  var off = document.createElement('canvas'), octx = off.getContext('2d');
+  var W = 0, H = 0, DPR = 1, CS = 14, cols = 0, rows = 0, field = null, t0 = performance.now(), tz = 0;
+  var sea = 0, probe = { x: 0, y: 0, user: false }, visible = true, last = 0;
+
+  function hash(i, j, k) {
+    var h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(k, 1274126177);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+  }
+  function sm(t) { return t * t * (3 - 2 * t); }
+  function vnoise(x, y, z) {
+    var xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    var xf = sm(x - xi), yf = sm(y - yi), zf = sm(z - zi);
+    function L(a, b, t) { return a + (b - a) * t; }
+    var c000 = hash(xi, yi, zi), c100 = hash(xi + 1, yi, zi), c010 = hash(xi, yi + 1, zi), c110 = hash(xi + 1, yi + 1, zi);
+    var c001 = hash(xi, yi, zi + 1), c101 = hash(xi + 1, yi, zi + 1), c011 = hash(xi, yi + 1, zi + 1), c111 = hash(xi + 1, yi + 1, zi + 1);
+    return L(L(L(c000, c100, xf), L(c010, c110, xf), yf), L(L(c001, c101, xf), L(c011, c111, xf), yf), zf);
+  }
+  function height(px, py, z) {
+    var x = px / 260, y = py / 260;
+    var v = 0.56 * vnoise(x, y, z) + 0.3 * vnoise(x * 2.1 + 7, y * 2.1 + 3, z * 1.3) + 0.14 * vnoise(x * 4.3 + 11, y * 4.3 + 5, z * 1.7);
+    // hav mod toppen: lavere terræn mod nord
+    var slope = py / Math.max(H, 1);
+    return v * 0.75 + slope * 0.45 - 0.05;
+  }
+  function kote(v) { return (v - 0.32) * 16; }
+
+  function resize() {
+    var r = hero.getBoundingClientRect();
+    W = Math.max(320, r.width); H = Math.max(300, r.height);
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    CS = W < 700 ? 12 : 14;
+    cols = Math.ceil(W / CS) + 1; rows = Math.ceil(H / CS) + 1;
+    field = new Float32Array(cols * rows);
+    off.width = cols; off.height = rows;
+    if (!probe.user) { probe.x = W * 0.72; probe.y = H * 0.55; }
+    draw(true);
+  }
+
+  function compute() {
+    for (var j = 0; j < rows; j++) for (var i = 0; i < cols; i++) field[j * cols + i] = height(i * CS, j * CS, tz);
+  }
+
+  function seg(a, b, va, vb, L) { var t = (L - va) / (vb - va); return a + (b - a) * t; }
+
+  function draw(recompute) {
+    if (recompute !== false) compute();
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    // vand
+    var img = octx.createImageData(cols, rows), d = img.data, wl = 0.32 + sea / 16, flooded = 0, land = 0;
+    for (var p = 0; p < cols * rows; p++) {
+      var v = field[p], o = p * 4;
+      if (v < wl) {
+        var deep = Math.min(1, (wl - v) * 6);
+        d[o] = 89; d[o + 1] = 210; d[o + 2] = 255; d[o + 3] = Math.round(26 + deep * 40);
+        if (v >= 0.32) flooded++;
+      } else { d[o + 3] = 0; }
+      if (v >= 0.32) land++;
+    }
+    octx.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(off, 0, 0, cols, rows, 0, 0, (cols - 1) * CS + CS, (rows - 1) * CS + CS);
+    hero.dataset.flood = land ? Math.round(flooded / land * 100) : 0;
+
+    // kurver
+    var levels = [];
+    for (var L = 0.08; L < 1.1; L += 0.045) levels.push(L);
+    for (var li = 0; li < levels.length; li++) {
+      var Lv = levels[li];
+      ctx.beginPath();
+      for (var j = 0; j < rows - 1; j++) {
+        for (var i = 0; i < cols - 1; i++) {
+          var a = field[j * cols + i], b = field[j * cols + i + 1], c = field[(j + 1) * cols + i + 1], e = field[(j + 1) * cols + i];
+          var idx = (a > Lv ? 8 : 0) | (b > Lv ? 4 : 0) | (c > Lv ? 2 : 0) | (e > Lv ? 1 : 0);
+          if (idx === 0 || idx === 15) continue;
+          var x = i * CS, y = j * CS;
+          var top = [seg(x, x + CS, a, b, Lv), y], right = [x + CS, seg(y, y + CS, b, c, Lv)];
+          var bot = [seg(x, x + CS, e, c, Lv), y + CS], left = [x, seg(y, y + CS, a, e, Lv)];
+          var s = null;
+          switch (idx) {
+            case 1: case 14: s = [left, bot]; break;
+            case 2: case 13: s = [bot, right]; break;
+            case 3: case 12: s = [left, right]; break;
+            case 4: case 11: s = [top, right]; break;
+            case 6: case 9: s = [top, bot]; break;
+            case 7: case 8: s = [left, top]; break;
+            case 5: ctx.moveTo(left[0], left[1]); ctx.lineTo(top[0], top[1]); s = [bot, right]; break;
+            case 10: ctx.moveTo(left[0], left[1]); ctx.lineTo(bot[0], bot[1]); s = [top, right]; break;
+          }
+          if (s) { ctx.moveTo(s[0][0], s[0][1]); ctx.lineTo(s[1][0], s[1][1]); }
+        }
+      }
+      var major = li % 4 === 0;
+      ctx.strokeStyle = major ? 'rgba(155,173,163,0.26)' : 'rgba(155,173,163,0.11)';
+      ctx.lineWidth = major ? 1.1 : 0.8;
+      ctx.stroke();
+    }
+    // kystlinje ved valgt havniveau
+    ctx.beginPath();
+    for (var j2 = 0; j2 < rows - 1; j2++) for (var i2 = 0; i2 < cols - 1; i2++) {
+      var A = field[j2 * cols + i2], B = field[j2 * cols + i2 + 1], C = field[(j2 + 1) * cols + i2 + 1], E = field[(j2 + 1) * cols + i2];
+      var id2 = (A > wl ? 8 : 0) | (B > wl ? 4 : 0) | (C > wl ? 2 : 0) | (E > wl ? 1 : 0);
+      if (id2 === 0 || id2 === 15) continue;
+      var X = i2 * CS, Y = j2 * CS;
+      var pts = [];
+      if ((A > wl) !== (B > wl)) pts.push([seg(X, X + CS, A, B, wl), Y]);
+      if ((B > wl) !== (C > wl)) pts.push([X + CS, seg(Y, Y + CS, B, C, wl)]);
+      if ((E > wl) !== (C > wl)) pts.push([seg(X, X + CS, E, C, wl), Y + CS]);
+      if ((A > wl) !== (E > wl)) pts.push([X, seg(Y, Y + CS, A, E, wl)]);
+      if (pts.length >= 2) { ctx.moveTo(pts[0][0], pts[0][1]); ctx.lineTo(pts[1][0], pts[1][1]); }
+      if (pts.length === 4) { ctx.moveTo(pts[2][0], pts[2][1]); ctx.lineTo(pts[3][0], pts[3][1]); }
+    }
+    ctx.strokeStyle = 'rgba(89,210,255,0.85)'; ctx.lineWidth = 1.4; ctx.stroke();
+
+    // sonde
+    var px = probe.x, py = probe.y;
+    ctx.strokeStyle = 'rgba(255,122,61,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([3, 5]);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.moveTo(0, py); ctx.lineTo(W, py); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = '#ff7a3d'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#ff7a3d'; ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI * 2); ctx.fill();
+    updateReadout();
+  }
+
+  var roE = document.getElementById('roE'), roN = document.getElementById('roN'), roK = document.getElementById('roK');
+  var seaVal = document.getElementById('seaVal'), seaNote = document.getElementById('seaNote');
+  function updateReadout() {
+    var E = 553400 + probe.x / W * 5200, N = 6325200 - probe.y / H * 3400;
+    var k = kote(height(probe.x, probe.y, tz));
+    roE.textContent = fmt(Math.round(E), 0);
+    roN.textContent = fmt(Math.round(N), 0);
+    roK.textContent = fmt(k, 1) + ' m';
+    roK.style.color = k < sea ? 'var(--kote)' : '';
+  }
+  function setSea(v, fromRange) {
+    sea = v;
+    if (!fromRange) document.getElementById('seaRange').value = v;
+    seaVal.innerHTML = '+' + fmt(v, 2) + '<small>m</small>';
+    document.querySelectorAll('#marks button').forEach(function (b) { b.classList.toggle('on', Math.abs(parseFloat(b.dataset.v) - v) < 0.005); });
+    draw(false);
+    var pct = hero.dataset.flood;
+    var txt;
+    if (v < 0.01) txt = 'Træk i skyderen, eller bevæg musen over kortet. Kurverne er en illustration. Tallene på skyderen er fra <code>oversvoemmelse</code> for havnefronten i Aalborg.';
+    else if (Math.abs(v - 1.41) < 0.005) txt = 'Ved <b>1,41 m</b> står havnefronten i Aalborg under vand. Nutidens 100-årsstormflod er 1,49 m, så det kan ske allerede i dag. På illustrationen er ' + pct + ' % af landet under vand.';
+    else if (Math.abs(v - 1.86) < 0.005) txt = '<b>1,86 m</b> er 100-årsstormfloden for Limfjorden østlig i 2071-2100 ved mellem udledning (Klimaatlas). På illustrationen er ' + pct + ' % af landet under vand.';
+    else txt = 'Havniveau <b>+' + fmt(v, 2) + ' m</b>. På illustrationen er ' + pct + ' % af landet under vand.';
+    seaNote.innerHTML = txt;
+  }
+  document.getElementById('seaRange').addEventListener('input', function (e) { setSea(parseFloat(e.target.value), true); });
+  document.querySelectorAll('#marks button').forEach(function (b) { b.addEventListener('click', function () { setSea(parseFloat(b.dataset.v)); }); });
+
+  hero.addEventListener('pointermove', function (e) {
+    if (e.target.closest && e.target.closest('.sea')) return;
+    var r = hero.getBoundingClientRect();
+    probe.x = e.clientX - r.left; probe.y = e.clientY - r.top; probe.user = true;
+    if (reduce) draw(false);
+  });
+  hero.addEventListener('pointerleave', function () { probe.user = false; });
+
+  function loop(now) {
+    requestAnimationFrame(loop);
+    if (!visible || document.hidden || reduce) return;
+    if (now - last < 42) return;
+    last = now;
+    tz = (now - t0) / 1000 * 0.035;
+    if (!probe.user) {
+      var s = (now - t0) / 1000;
+      probe.x = W * (0.68 + 0.16 * Math.sin(s * 0.23));
+      probe.y = H * (0.52 + 0.22 * Math.sin(s * 0.17 + 1.2));
+    }
+    draw(true);
+  }
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (en) { visible = en[0].isIntersecting; }).observe(hero);
+  }
+  window.addEventListener('resize', function () { resize(); });
+  resize();
+  requestAnimationFrame(loop);
+
+  /* ---------- Agent-demo ---------- */
+  var SCEN = [
+    {
+      key: 'grund', tag: 'Grundscreening', title: 'Havnefronten i Aalborg',
+      sub: 'Plan, ramme og oversvømmelse for et punkt',
+      prompt: 'Vi overvejer boliger på hjørnet ved Strandvejen i Aalborg (E 555882, N 6323400). Hvad siger planerne, og hvor udsat er stedet for havvand?',
+      calls: [
+        { nm: 'sted_find', args: 'x=555882, y=6323400', ms: 640, res: 'Aalborg Kommune (851) · byzone · jordstykke og BFE fundet' },
+        { nm: 'plan_gaeldende', args: 'x=555882, y=6323400', ms: 910, res: 'Lokalplan 10-056 “Området mellem Vesterbro, Strandvejen, Østerågade og Bispensgade”, delområde Karré · centerområde' },
+        { nm: 'plan_gaeldende → kommuneplanramme', args: '1.1.C1 Middelalderbyen', ms: 120, res: 'Maks. 6 etager · husdybde maks. 10 m for randbebyggelse · antal boligetagemeter må ikke mindskes' },
+        { nm: 'oversvoemmelse', args: 'x=555882, y=6323400, ring=40 m', ms: 1380, res: 'Oversvømmes ved havniveau 1,41 m · grundvand ca. 1,0 m under terræn (vinter)' },
+        { nm: 'klima_fremskrivning', args: 'kyst=Limfjord østlig, 2071-2100', ms: 860, res: '100-årsstormflod 1,49 → 1,86 m · middelvandstand +37 cm (13-69)' }
+      ],
+      answer: [
+        'Stedet ligger i <b>lokalplan 10-056</b>, delområde Karré, udlagt til centerområde. Kommuneplanrammen <b>1.1.C1 Middelalderbyen</b> giver op til <b>6 etager</b> og en husdybde på højst 10 m for randbebyggelse, og boligetagemeterne må ikke mindskes.',
+        'Havvand er den store risiko. Stedet oversvømmes ved et havniveau på <b>1,41 m</b>, og nutidens 100-årsstormflod er allerede 1,49 m. Frem mod 2071-2100 stiger den til <b>1,86 m</b>. Grundvandet står ca. 1 m under terræn om vinteren, så kælder og sokkelkote bør afklares tidligt.'
+      ],
+      cites: [['Plandata.dk', 'https://www.plandata.dk'], ['Lokalplan 10-056 (PDF)', 'https://dokument.plandata.dk/20_1227973_1548247690020.pdf'], ['Havvand på Land', 'https://dataforsyningen.dk'], ['DMI Klimaatlas', 'https://www.dmi.dk/klimaatlas']]
+    },
+    {
+      key: 'br18', tag: 'BR18-tjek', title: 'Redningsåbninger',
+      sub: 'Paragraffer og præ-accepterede løsninger',
+      prompt: 'Hvad kræver BR18 til redningsåbninger, og hvor står den præ-accepterede løsning?',
+      calls: [
+        { nm: 'br18_soeg', args: 'tekst="redningsåbning"', ms: 38, res: '§ 97, § 98 og § 128 i kapitel 5 Brand' },
+        { nm: 'br18_vejledning_soeg', args: 'tekst="redningsåbning", kapitel=5', ms: 44, res: 'Vejledning om evakuering s. 38 · Bilag 5 undervisningslokaler s. 32 · Bilag 6 hoteller s. 31' },
+        { nm: 'br18_paragraf', args: '"97-98"', ms: 12, res: 'Fuld ordlyd af § 97 og § 98 med links til vejledninger' }
+      ],
+      answer: [
+        'Efter <b>§ 97</b> skal brandmæssige enheder til personophold have redningsåbninger, medmindre et tilsvarende sikkerhedsniveau opnås på anden vis. <b>§ 98</b> siger, at personer skal kunne give sig til kende over for redningsberedskabet, og at åbningerne skal kunne bruges til redning. Efter <b>§ 128</b> skal der være brandredningsarealer, hvis redningen sker med stiger.',
+        'De konkrete mål står i vejledningerne, fx i <b>vejledningen om evakuering, side 38</b>, og i de præ-accepterede løsninger i <b>bilag 5 (s. 32)</b> og <b>bilag 6 (s. 31)</b>. Husk, at vejledningerne er vejledende, mens paragraffen er bindende.'
+      ],
+      cites: [['BR18 § 91-98', 'https://www.bygningsreglementet.dk/tekniske-bestemmelser/05/krav/91_98/'], ['BR18 § 126-133', 'https://www.bygningsreglementet.dk/tekniske-bestemmelser/05/krav/126_133/'], ['Vejledning om evakuering (PDF)', 'https://www.bygningsreglementet.dk/media/ruwni4b3/kapitel-2-evakuering-ver-02-2021-02-08-a.pdf']]
+    },
+    {
+      key: 'lca', tag: 'Klima og LCA', title: 'Beton eller limtræ?',
+      sub: 'GWP fra BR18 og fremtidens skybrud',
+      prompt: 'Sammenlign klimapåvirkningen af beton C25/30 og limtræ efter BR18, og hvor meget mere skybrud skal vi regne med i Aalborg?',
+      calls: [
+        { nm: 'lca_materiale', args: 'materiale="beton c25"', ms: 22, res: 'Fabriksbeton C25/30 · A1-A3: 241 kg CO₂e/m³' },
+        { nm: 'lca_materiale', args: 'materiale="limtræ"', ms: 19, res: 'Limtræ af fyr og gran (branchedata) · A1-A3: −610 · C3: 743 · D: −395 kg CO₂e/m³' },
+        { nm: 'el_co2', args: 'år=2026', ms: 520, res: 'BR18 tabel 8.1: el 0,071 kg CO₂e/kWh · 50-års middel 0,029' },
+        { nm: 'klima_fremskrivning', args: 'kommune=851, RCP4,5, 2071-2100', ms: 940, res: 'Skybrud 0,32 → 0,46 pr. år (+43 %) · 100-års timenedbør 44,6 → 56,4 mm' }
+      ],
+      answer: [
+        'Pr. m³ har beton C25/30 <b>241 kg CO₂e</b> i produktionen (A1-A3). Limtræ står til <b>−610 kg CO₂e/m³</b> i A1-A3, fordi træet har optaget CO₂, men det frigives igen ved forbrænding (<b>C3: 743</b>). Sammenlign derfor hele livscyklussen pr. funktionel enhed, ikke kun A1-A3.',
+        'I Aalborg Kommune stiger antallet af skybrud fra 0,32 til <b>0,46 om året (+43 %)</b> i 2071-2100, og 100-årshændelsen for timenedbør fra 44,6 til <b>56,4 mm</b>. Det bør indgå i dimensioneringen af tag, afløb og terrænregulering.'
+      ],
+      cites: [['BR18 bilag 2, tabel 7', 'https://www.bygningsreglementet.dk/bilag/b2/bilag_2/'], ['EPD Danmark (limtræ)', 'https://www.epddanmark.dk'], ['DMI Klimaatlas', 'https://www.dmi.dk/klimaatlas']]
+    }
+  ];
+
+  var tabs = document.getElementById('scenTabs'), chat = document.getElementById('chat');
+  var cur = 0, runId = 0;
+  SCEN.forEach(function (s, i) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('role', 'tab'); b.id = 'scen-' + s.key;
+    b.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+    b.innerHTML = '<span>' + esc(s.tag) + '</span><b>' + esc(s.title) + '</b><small>' + esc(s.sub) + '</small>';
+    b.addEventListener('click', function () { select(i, true); });
+    tabs.appendChild(b);
+  });
+
+  function render(s, full) {
+    var h = '<div class="msg-user" id="pr">' + (full ? esc(s.prompt) : '') + '</div><div class="calls">';
+    s.calls.forEach(function (c, i) {
+      h += '<div class="call' + (full ? '' : ' hidden') + '" data-i="' + i + '"><span class="ic ' + (full ? 'ok' : 'run') + '">' + (full ? '✓' : '') + '</span>' +
+        '<div><span class="nm">' + esc(c.nm) + '</span> <span class="args">(' + esc(c.args) + ')</span>' +
+        '<div class="res"' + (full ? '' : ' hidden') + '>' + esc(c.res) + '</div></div>' +
+        '<span class="ms">' + (full ? fmt(c.ms, 0) + ' ms' : '') + '</span></div>';
+    });
+    h += '</div><div class="answer" id="ans">';
+    s.answer.forEach(function (p) { h += '<p>' + (full ? p : '') + '</p>'; });
+    h += '</div><div class="cites" id="cites"' + (full ? '' : ' hidden') + '>';
+    s.cites.forEach(function (c) { h += '<a class="cite" href="' + c[1] + '">' + esc(c[0]) + ' ↗</a>'; });
+    h += '</div>';
+    chat.innerHTML = h;
+  }
+
+  function wait(ms, id) { return new Promise(function (res, rej) { setTimeout(function () { id === runId ? res() : rej('stop'); }, ms); }); }
+
+  function play(i) {
+    var s = SCEN[i], id = ++runId;
+    if (reduce) { render(s, true); return; }
+    render(s, false);
+    var pr = document.getElementById('pr'), k = 0;
+    var p = Promise.resolve();
+    // skriv prompten
+    var words = s.prompt.split(' ');
+    words.forEach(function (w, wi) {
+      p = p.then(function () { pr.textContent = words.slice(0, wi + 1).join(' '); return wait(28, id); });
+    });
+    p = p.then(function () { return wait(350, id); });
+    s.calls.forEach(function (c, ci) {
+      p = p.then(function () {
+        var row = chat.querySelector('.call[data-i="' + ci + '"]');
+        row.classList.remove('hidden');
+        return wait(Math.min(1200, 300 + c.ms * 0.5), id).then(function () {
+          var ic = row.querySelector('.ic'); ic.className = 'ic ok'; ic.textContent = '✓';
+          row.querySelector('.res').hidden = false;
+          row.querySelector('.ms').textContent = fmt(c.ms, 0) + ' ms';
+          return wait(160, id);
+        });
+      });
+    });
+    var paras = chat.querySelectorAll('#ans p');
+    s.answer.forEach(function (html, ai) {
+      p = p.then(function () {
+        var tokens = html.split(/(<[^>]+>|\s+)/).filter(function (x) { return x !== ''; });
+        var out = '', q = Promise.resolve();
+        tokens.forEach(function (tk) {
+          q = q.then(function () {
+            out += tk;
+            paras[ai].innerHTML = out + '<span class="caret"></span>';
+            return /^\s+$|^</.test(tk) ? Promise.resolve() : wait(16, id);
+          });
+        });
+        return q.then(function () { paras[ai].innerHTML = out; return wait(120, id); });
+      });
+    });
+    p.then(function () { document.getElementById('cites').hidden = false; }).catch(function () {});
+  }
+
+  function select(i, run) {
+    cur = i;
+    tabs.querySelectorAll('button').forEach(function (b, bi) { b.setAttribute('aria-selected', bi === i ? 'true' : 'false'); });
+    if (run) play(i); else { runId++; render(SCEN[i], true); }
+  }
+  document.getElementById('replay').addEventListener('click', function () { play(cur); });
+  render(SCEN[0], true);
+  if ('IntersectionObserver' in window && !reduce) {
+    var started = false;
+    new IntersectionObserver(function (en, ob) {
+      if (en[0].isIntersecting && !started) { started = true; ob.disconnect(); play(cur); }
+    }, { threshold: 0.35 }).observe(document.querySelector('.window'));
+  }
+
+  /* ---------- Tal ---------- */
+  if ('IntersectionObserver' in window && !reduce) {
+    var figs = document.querySelectorAll('[data-count]'), done = false;
+    new IntersectionObserver(function (en, ob) {
+      if (!en[0].isIntersecting || done) return; done = true; ob.disconnect();
+      figs.forEach(function (el) {
+        var to = parseInt(el.dataset.count, 10), t1 = performance.now();
+        (function step(now) {
+          var t = Math.min(1, (now - t1) / 1100), e = 1 - Math.pow(1 - t, 3);
+          el.textContent = fmt(Math.round(to * e), 0);
+          if (t < 1) requestAnimationFrame(step);
+        })(t1);
+      });
+    }, { threshold: 0.5 }).observe(document.querySelector('.figs'));
+  }
+
+  /* ---------- Lag ---------- */
+  var LAYERS = [
+    { l: 'matrikel', c: '#ff7a3d', name: 'Matrikel og ejendom', tool: 'sted_find · bygning_bbr',
+      text: 'Fra adresse, matrikel, BFE eller koordinat til jordstykker, grundareal og noteringer om fredskov, strandbeskyttelse og klitfredning. BBR giver bygninger med anvendelse, arealer, materialer og fredning.',
+      json: '{\n  <span class="k">"kommune"</span>: <span class="s">"Aalborg"</span>,\n  <span class="k">"zonestatus"</span>: <span class="s">"Byzone"</span>,\n  <span class="k">"jordstykker"</span>: [ … ],\n  <span class="k">"grundareal_m2"</span>: <span class="n">…</span>,\n  <span class="k">"match"</span>: <span class="s">"eksakt"</span>\n}' },
+    { l: 'plan', c: '#b18cff', name: 'Lokalplan og ramme', tool: 'plan_gaeldende · plan_laes_lokalplan',
+      text: 'Gældende lokalplan, delområde, forslag og kommuneplanramme fra Plandata.dk. Lokalplanens bestemmelser læses ud af PDF\'en og deles op efter emne, fx højde, facade og parkering.',
+      json: '{\n  <span class="k">"plannr"</span>: <span class="s">"10-056"</span>,\n  <span class="k">"delnr"</span>: <span class="s">"Karré"</span>,\n  <span class="k">"anvendelse"</span>: <span class="s">"Centerområde"</span>,\n  <span class="k">"ramme"</span>: <span class="s">"1.1.C1 Middelalderbyen"</span>,\n  <span class="k">"maxetager"</span>: <span class="n">6</span>\n}' },
+    { l: 'byggelinje', c: '#e9f0eb', name: 'Linjer og beskyttelse', tool: 'restriktioner',
+      text: 'Bygge- og beskyttelseslinjer, fredninger, § 3-natur, Natura 2000, grundvandsinteresser, jordforurening V1/V2 og fortidsminder. Kun det, der faktisk rammer stedet, med CQL-skæring i stedet for løse bokse.',
+      json: '{\n  <span class="k">"byggelinjer"</span>: [ … ],\n  <span class="k">"jordforurening"</span>: { <span class="k">"V1"</span>: <span class="n">…</span>, <span class="k">"V2"</span>: <span class="n">…</span> },\n  <span class="k">"fortidsminder"</span>: [ … ],\n  <span class="k">"kilder"</span>: [ <span class="s">"Arealinformation"</span>, <span class="s">"DKjord"</span> ]\n}' },
+    { l: 'stoej', c: '#ffb27a', name: 'Støj', tool: 'restriktioner',
+      text: 'Støjkortlægningen for vej og jernbane i Lden, i 5 dB-bånd. Vigtigt for opholdsarealer, facadeisolering og planens støjkrav.',
+      json: '{\n  <span class="k">"stoej"</span>: {\n    <span class="k">"kilde"</span>: <span class="s">"vejtrafik"</span>,\n    <span class="k">"lden_db"</span>: <span class="s">"bånd fra kortlægningen"</span>,\n    <span class="k">"kortlaegningsaar"</span>: <span class="n">…</span>\n  }\n}' },
+    { l: 'terraen', c: '#9badA3', name: 'Terræn og jord', tool: 'terraen · jord_geologi',
+      text: 'Koter i DVR90, højdeforskel og hældning over grunden, højder på bygninger og træer hos naboerne, jordart og nærmeste boringer med lag og vandstand.',
+      json: '{\n  <span class="k">"kote_min_m"</span>: <span class="n">…</span>,\n  <span class="k">"kote_max_m"</span>: <span class="n">…</span>,\n  <span class="k">"haeldning_pct"</span>: <span class="n">…</span>,\n  <span class="k">"jordart"</span>: <span class="s">"…"</span>,\n  <span class="k">"boringer"</span>: [ … ]\n}' },
+    { l: 'vand', c: '#59d2ff', name: 'Havvand og grundvand', tool: 'oversvoemmelse · klima_fremskrivning',
+      text: 'Det havniveau, der oversvømmer stedet, sammenholdt med stormflod for kyststrækningen nu og i fremtiden. Regn der fylder lavninger, og terrænnært grundvand.',
+      json: '{\n  <span class="k">"havniveau_oversvoemmer_m"</span>: <span class="n">1.41</span>,\n  <span class="k">"stormflod_100aar_nu_m"</span>: <span class="n">1.49</span>,\n  <span class="k">"stormflod_100aar_2071_2100_m"</span>: <span class="n">1.86</span>,\n  <span class="k">"grundvand_vinter_m_u_t"</span>: <span class="n">1.0</span>\n}' }
+  ];
+  var chips = document.getElementById('chips'), info = document.getElementById('info'), map = document.getElementById('map');
+  var active = null;
+  function showInfo(L) {
+    if (!L) {
+      info.innerHTML = '<span class="tool">grundrapport</span><h3>Alle lag på én gang</h3><p>Vælg et lag ovenfor for at se det enkelte værktøj. Eller bed om en <code>grundrapport</code>, som samler ejendom, bygninger, planer, restriktioner, terræn, jord og grundvand i ét svar.</p>';
+      return;
+    }
+    info.innerHTML = '<span class="tool">' + esc(L.tool) + '</span><h3>' + esc(L.name) + '</h3><p>' + esc(L.text) + '</p><pre>' + L.json + '</pre>';
+  }
+  LAYERS.forEach(function (L) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = '<i style="background:' + L.c + '"></i>' + esc(L.name);
+    b.addEventListener('click', function () {
+      active = active === L.l ? null : L.l;
+      chips.querySelectorAll('.chip').forEach(function (c, ci) { c.setAttribute('aria-pressed', LAYERS[ci].l === active ? 'true' : 'false'); });
+      map.classList.toggle('focus', !!active);
+      map.querySelectorAll('.lyr').forEach(function (g) { g.classList.toggle('on', g.dataset.l === active); });
+      showInfo(LAYERS.filter(function (x) { return x.l === active; })[0]);
+    });
+    chips.appendChild(b);
+  });
+  showInfo(null);
+
+  /* ---------- Kildebånd ---------- */
+  var SRC = ['Datafordeleren', 'BBR', 'Matriklen', 'DAR', 'Plandata.dk', 'Danmarks Miljøportal', 'DKjord', 'Miljøstyrelsen støj', 'Fund og Fortidsminder', 'Danmarks Højdemodel', 'Havvand på Land', 'HIP', 'GEUS', 'DMI', 'DMI Klimaatlas', 'bygningsreglementet.dk', 'Retsinformation', 'PVGIS', 'Energinet', 'EMOData', 'ÖKOBAUDAT', 'bSDD'];
+  var tk = document.getElementById('ticker'), th = '';
+  SRC.concat(SRC).forEach(function (s, i) { th += '<span' + (i >= SRC.length ? ' aria-hidden="true"' : '') + '>' + esc(s) + '</span>'; });
+  tk.innerHTML = th;
+
+  /* ---------- Katalog ---------- */
+  var G = { sted: ['Sted', '#ff7a3d'], plan: ['Plan', '#b18cff'], terr: ['Terræn', '#9badA3'], regl: ['Regler', '#e9f0eb'], klima: ['Klima', '#59d2ff'], energi: ['Energi og LCA', '#7ee2a0'] };
+  var TOOLS = [
+    ['sted_find', 'sted', 'Adresse, matrikel, BFE eller koordinat til ejendom, jordstykker og grundareal. Markerer usikre match.'],
+    ['bygning_bbr', 'sted', 'Bygninger med anvendelse, opførelsesår, arealer, etager, materialer, asbest, varme og fredning.'],
+    ['grundrapport', 'sted', 'Samlet screening: ejendom, bygninger, plangrundlag, restriktioner, terræn, jord og grundvand.'],
+    ['kilde_status', 'sted', 'Hvilke kilder svarer lige nu, og hvilke mangler nøgler.'],
+    ['plan_gaeldende', 'plan', 'Lokalplaner, delområder, forslag, kommuneplanramme, zonestatus og byggefelter.'],
+    ['plan_laes_lokalplan', 'plan', 'Lokalplanens bestemmelser fra PDF\'en, nummereret og filtreret på emne som højde, facade og parkering.'],
+    ['restriktioner', 'plan', 'Bygge- og beskyttelseslinjer, fredninger, § 3, Natura 2000, grundvand, jordforurening, støj og fortidsminder.'],
+    ['terraen', 'terr', 'Koter i DVR90, højdeforskel og hældning, højde over terræn på grunden og hos naboerne.'],
+    ['jord_geologi', 'terr', 'Jordart, nærmeste boringer med lag og vandstand, terrænnært grundvand sommer og vinter.'],
+    ['kort_udsnit', 'terr', 'Ortofoto eller skyggekort af terræn og overflade som billede, plus link til skråfoto.'],
+    ['br18_soeg', 'regl', 'Fritekst i BR18 med synonymer og de bedste hits fra vejledningerne.'],
+    ['br18_paragraf', 'regl', 'Fuld ordlyd af paragraffer og bilag med links til vejledninger og standarder.'],
+    ['br18_kapitel', 'regl', 'Oversigt over kapitler, afsnit og paragrafnumre i BR18.'],
+    ['br18_vejledning_soeg', 'regl', 'Søgning i BR-vejledningerne og deres PDF-bilag med dokument og sidetal.'],
+    ['br18_vejledning_hent', 'regl', 'Den fulde tekst fra en side i vejledningen, med siderne før og efter.'],
+    ['lov_soeg', 'regl', 'Gældende love og bekendtgørelser fra Retsinformation.'],
+    ['lov_paragraf', 'regl', 'Enkelte paragraffer i fx byggeloven, planloven og naturbeskyttelsesloven.'],
+    ['klima_data', 'klima', 'Målt klima for kommunen: temperatur, graddage, nedbør, største 30-min.-regn, vind og sol.'],
+    ['klima_fremskrivning', 'klima', 'Klimaatlas til 2100: skybrud, 100-årsregn, hedebølger, frost, havstigning og stormflod.', 1],
+    ['oversvoemmelse', 'klima', 'Havniveau der oversvømmer stedet, Bluespot-lavninger og terrænnært grundvand.', 1],
+    ['sol_og_pv', 'energi', 'Solcelleydelse og indstråling med valgfri eller optimal hældning og horisont.'],
+    ['vejrfil', 'energi', 'EPW-vejrfil (TMY) til energi- og indeklimasimulering.'],
+    ['el_co2', 'energi', 'CO₂ fra el nu og de seneste dage, plus BR18\'s emissionsfaktorer for el, fjernvarme og gas.'],
+    ['lca_materiale', 'energi', 'GWP for materialer fra BR18\'s generiske data og ÖKOBAUDAT.'],
+    ['energimaerke', 'energi', 'Energimærker for ejendommen og forbedringsforslag med investering, besparelse og levetid.', 1],
+    ['bim_klassifikation', 'energi', 'Klasser og egenskaber i CCI, IFC 4.3 og DTU\'s BR18-bygningsdele via bSDD.']
+  ];
+  var grid = document.getElementById('tools'), q = document.getElementById('q'), fil = document.getElementById('filters'), cnt = document.getElementById('count');
+  var group = 'alle';
+  var ALL = [['alle', 'Alle']].concat(Object.keys(G).map(function (k) { return [k, G[k][0]]; }));
+  ALL.forEach(function (g) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.textContent = g[1]; b.setAttribute('aria-pressed', g[0] === 'alle' ? 'true' : 'false');
+    b.addEventListener('click', function () {
+      group = g[0];
+      fil.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      list();
+    });
+    fil.appendChild(b);
+  });
+  function norm(s) { return s.toLowerCase().replace(/_/g, ' '); }
+  function list() {
+    var term = norm(q.value.trim()), h = '', n = 0;
+    TOOLS.forEach(function (t) {
+      if (group !== 'alle' && t[1] !== group) return;
+      if (term && (norm(t[0]) + ' ' + norm(t[2]) + ' ' + norm(G[t[1]][0])).indexOf(term) < 0) return;
+      n++;
+      h += '<article class="tcard"><div class="row"><code>' + esc(t[0]) + (t[3] ? '<span class="new">NY</span>' : '') + '</code>' +
+        '<span class="grp" style="color:' + G[t[1]][1] + '">' + esc(G[t[1]][0]) + '</span></div><p>' + esc(t[2]) + '</p></article>';
+    });
+    grid.innerHTML = h || '<p class="empty">Ingen værktøjer matcher “' + esc(q.value) + '”. Prøv et andet ord.</p>';
+    cnt.textContent = n + ' af ' + TOOLS.length + ' værktøjer';
+  }
+  q.addEventListener('input', list);
+  list();
+
+  /* ---------- Faneblade og kopi ---------- */
+  document.querySelectorAll('.tablist').forEach(function (tl) {
+    var tbtn = tl.querySelectorAll('[role="tab"]');
+    tbtn.forEach(function (b) {
+      b.addEventListener('click', function () {
+        tbtn.forEach(function (x) {
+          var on = x === b; x.setAttribute('aria-selected', on ? 'true' : 'false');
+          document.getElementById(x.getAttribute('aria-controls')).hidden = !on;
+        });
+      });
+    });
+  });
+  function copyText(text, node, done) {
+    function fb() {
+      if (node) { var r = document.createRange(); r.selectNodeContents(node); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+      done(false);
+    }
+    try { navigator.clipboard.writeText(text).then(function () { done(true); }, fb); } catch (e) { fb(); }
+  }
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('.copy');
+    if (!btn) return;
+    var node = btn.dataset.copy ? document.getElementById('mail') : btn.parentElement.querySelector('pre, .ptext');
+    var text = btn.dataset.copy || node.textContent;
+    copyText(text, node, function (ok) {
+      btn.textContent = ok ? 'Kopieret' : 'Markeret';
+      setTimeout(function () { btn.textContent = 'Kopiér'; }, 1600);
+    });
+  });
+
+  /* ---------- Inspiration ---------- */
+  var ROLES = ['Arkitekt', 'Ingeniør', 'Bygningskonstruktør', 'Bygherre', 'Undervisning'];
+  var PHASES = ['Idé og grundkøb', 'Skitse', 'Projektering', 'Myndighed', 'Drift og renovering'];
+  var UC = [
+    { t: 'Due diligence før bud', r: ['Bygherre', 'Arkitekt'], p: 'Idé og grundkøb', d: 'Alt der kan stoppe eller fordyre et projekt, før der bydes.', q: 'Lav en grundscreening af [adresse] før vi byder. Fremhæv alt, der kan stoppe eller fordyre et boligprojekt, og angiv kilden til hvert punkt.', tools: ['grundrapport', 'restriktioner', 'oversvoemmelse'] },
+    { t: 'Byggeretten i lokalplanen', r: ['Arkitekt', 'Bygningskonstruktør'], p: 'Skitse', d: 'Bebyggelsesprocent, højde, etager, facade og parkering med paragrafhenvisning.', q: 'Hvad må vi bygge på [adresse]? Find bebyggelsesprocent, etager, højde, facadekrav og parkering i lokalplanen, og henvis til paragraffen.', tools: ['plan_gaeldende', 'plan_laes_lokalplan', 'bygning_bbr'] },
+    { t: 'Sokkelkote og havstigning', r: ['Ingeniør', 'Arkitekt'], p: 'Skitse', d: 'Stormflod, skybrud og grundvand frem mod 2100 som grundlag for koter.', q: 'Hvilken sokkelkote bør vi overveje på [adresse] i forhold til havstigning, stormflod og skybrud frem mod 2100? Vis de tal, du bygger på.', tools: ['oversvoemmelse', 'klima_fremskrivning', 'terraen'] },
+    { t: 'Funderingsscreening', r: ['Ingeniør'], p: 'Idé og grundkøb', d: 'Jordart, boringer og grundvand, før der bestilles geoteknik.', q: 'Hvilken jordbund og grundvandsstand kan vi forvente på [adresse]? Vis de nærmeste boringer med jordlag og vandstand.', tools: ['jord_geologi', 'terraen'] },
+    { t: 'Flugtveje og redningsåbninger', r: ['Bygningskonstruktør', 'Arkitekt'], p: 'Projektering', d: 'Krav og præ-accepterede løsninger med sidetal i vejledningen.', q: 'Gennemgå BR18\'s krav til flugtveje og redningsåbninger for en etagebolig i 4 etager, og find den præ-accepterede løsning med sidetal.', tools: ['br18_soeg', 'br18_vejledning_soeg', 'br18_paragraf'] },
+    { t: 'Ydervæg: tegl, træ eller beton', r: ['Arkitekt', 'Ingeniør'], p: 'Skitse', d: 'GWP pr. deklareret enhed fra BR18\'s generiske data.', q: 'Sammenlign GWP for tegl, træbeklædning og beton efter BR18 tabel 7. Angiv enhed og moduler, og forklar hvad der skal med i en sammenligning pr. m² væg.', tools: ['lca_materiale'] },
+    { t: 'Grænseværdi for klimapåvirkning', r: ['Ingeniør', 'Bygningskonstruktør'], p: 'Projektering', d: 'Krav, moduler og emissionsfaktorer for driftsenergi.', q: 'Hvilken grænseværdi for klimapåvirkning gælder for et nyt etagebyggeri over 1.000 m² nu, hvilke moduler indgår, og hvilken emissionsfaktor skal bruges for el?', tools: ['br18_soeg', 'br18_paragraf', 'el_co2'] },
+    { t: 'Solceller på taget', r: ['Ingeniør', 'Bygherre'], p: 'Skitse', d: 'Årsproduktion og månedsfordeling med horisont fra terrænmodellen.', q: 'Hvor meget kan 40 m² solceller mod sydvest i 30° hældning producere om året på [adresse]? Vis månedsfordelingen.', tools: ['sol_og_pv'] },
+    { t: 'Vejrfil til simulering', r: ['Ingeniør'], p: 'Projektering', d: 'EPW-fil og målt klima, og forskellen til DRY.', q: 'Hent en vejrfil til indeklimasimulering for [adresse], og forklar forskellen mellem den og DRY, som Be18 bruger.', tools: ['vejrfil', 'klima_data'] },
+    { t: 'Energimærke og forbedringer', r: ['Bygherre', 'Bygningskonstruktør'], p: 'Drift og renovering', d: 'Forslag med investering, besparelse og levetid.', q: 'Hvilke forbedringsforslag har energimærket for [adresse]? Sortér dem efter tilbagebetalingstid, og vis hvilken energiklasse der kan opnås.', tools: ['energimaerke', 'bygning_bbr'] },
+    { t: 'Ombygning af ældre byggeri', r: ['Bygningskonstruktør'], p: 'Drift og renovering', d: 'Opførelsesår og materialer fra BBR som grundlag for miljøkortlægning.', q: 'Hvilke materialer, opførelsesår og ombygningsår står i BBR for bygningerne på [adresse]? Hvad betyder det for, hvad vi skal undersøge før nedrivning?', tools: ['bygning_bbr', 'lov_soeg'] },
+    { t: 'Støj og opholdsarealer', r: ['Arkitekt'], p: 'Skitse', d: 'Lden ved grunden og planens krav til støj.', q: 'Hvor støjbelastet er [adresse] fra vej og jernbane, og hvad siger lokalplanen om støj? Hvad betyder det for placering af opholdsarealer og soverum?', tools: ['restriktioner', 'plan_laes_lokalplan'] },
+    { t: 'Naboernes højder', r: ['Arkitekt'], p: 'Skitse', d: 'Højde over terræn for bygninger og træer rundt om grunden.', q: 'Hvor høje er bygninger og træer hos naboerne til [adresse]? Giv et overblik, jeg kan bruge til et skyggestudie, og vis et skyggekort.', tools: ['terraen', 'kort_udsnit'] },
+    { t: 'Fredet eller bevaringsværdigt?', r: ['Arkitekt', 'Bygherre'], p: 'Drift og renovering', d: 'Fredning, bevaringsværdi og fortidsminder tæt på.', q: 'Er bygningerne på [adresse] fredede, og ligger der fortidsminder eller beskyttelseslinjer, der påvirker en tilbygning?', tools: ['bygning_bbr', 'restriktioner'] },
+    { t: 'Dispensation fra lokalplan', r: ['Bygherre', 'Arkitekt'], p: 'Myndighed', d: 'Planlovens regler og hvornår der skal naboorienteres.', q: 'Hvad siger planloven om dispensation fra en lokalplan, og hvornår skal kommunen orientere naboerne? Citér paragrafferne.', tools: ['lov_soeg', 'lov_paragraf'] },
+    { t: 'BR18-tjek af projektbeskrivelse', r: ['Bygningskonstruktør', 'Arkitekt'], p: 'Myndighed', d: 'Brug prompten br18_tjek på en beskrivelse før ansøgning.', q: 'Brug br18_tjek på vores projekt: 6 rækkehuse i træ i 2 etager med carporte og fælleshus, i alt ca. 900 m². Gå brand, tilgængelighed, energi og klimapåvirkning igennem.', tools: ['br18_soeg', 'br18_vejledning_soeg', 'br18_paragraf'] },
+    { t: 'Klassifikation til BIM-modellen', r: ['Bygningskonstruktør', 'Ingeniør'], p: 'Projektering', d: 'CCI-klasse og IFC-egenskaber for en bygningsdel.', q: 'Hvilken CCI-klasse og hvilke IFC-egenskaber passer til en indvendig let skillevæg med gips på stålskelet?', tools: ['bim_klassifikation'] },
+    { t: 'Case til undervisningen', r: ['Undervisning'], p: 'Idé og grundkøb', d: 'En færdig case om en rigtig grund til studerende.', q: 'Lav en case om [adresse] til bygningskonstruktørstuderende på 3. semester: plangrundlag, restriktioner og tre BR18-krav, de selv skal undersøge. Giv ikke svarene.', tools: ['grundrapport', 'br18_soeg'] }
+  ];
+  var fRole = 'Alle', fPhase = 'Alle';
+  function chipRow(el, vals, get, set) {
+    ['Alle'].concat(vals).forEach(function (v) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = v; b.className = 'chip'; b.setAttribute('aria-pressed', v === 'Alle' ? 'true' : 'false');
+      b.addEventListener('click', function () {
+        set(v);
+        el.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+        renderUC();
+      });
+      el.appendChild(b);
+    });
+  }
+  chipRow(document.getElementById('fRole'), ROLES, null, function (v) { fRole = v; });
+  chipRow(document.getElementById('fPhase'), PHASES, null, function (v) { fPhase = v; });
+  function renderUC() {
+    var h = '', n = 0;
+    UC.forEach(function (u) {
+      if (fRole !== 'Alle' && u.r.indexOf(fRole) < 0) return;
+      if (fPhase !== 'Alle' && u.p !== fPhase) return;
+      n++;
+      var qh = esc(u.q).replace(/\[adresse\]/g, '<mark>[adresse]</mark>');
+      h += '<article class="uc"><div class="meta"><span class="ph">' + esc(u.p) + '</span>' + u.r.map(function (r) { return '<span>' + esc(r) + '</span>'; }).join('') + '</div>' +
+        '<h3>' + esc(u.t) + '</h3><p>' + esc(u.d) + '</p>' +
+        '<div class="prompt"><span class="ptext">' + qh + '</span><button class="copy" type="button">Kopiér</button></div>' +
+        '<div class="tl">' + u.tools.map(function (t) { return '<code>' + esc(t) + '</code>'; }).join('') + '</div></article>';
+    });
+    document.getElementById('ucGrid').innerHTML = h || '<p class="empty">Ingen eksempler for den kombination endnu. Prøv en anden fase.</p>';
+    document.getElementById('ucCount').textContent = n + ' af ' + UC.length + ' eksempler';
+  }
+  renderUC();
+
+  /* ---------- Kontakt ---------- */
+  document.getElementById('cform').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var navn = document.getElementById('c-navn').value.trim(), org = document.getElementById('c-org').value.trim();
+    var emne = document.getElementById('c-emne').value, besked = document.getElementById('c-besked').value.trim();
+    var st = document.getElementById('cstatus');
+    if (!besked) { st.style.color = 'var(--matrikel)'; st.textContent = 'Skriv en kort besked først.'; document.getElementById('c-besked').focus(); return; }
+    var text = 'Emne: byg-mcp · ' + emne + '\n\n' + besked + '\n\n' + [navn, org].filter(Boolean).join(', ');
+    copyText(text, document.getElementById('c-besked'), function (ok) {
+      st.style.color = 'var(--ok)';
+      st.textContent = ok ? 'Beskeden er kopieret. Indsæt den i en mail til pega@ucn.dk.' : 'Kopiér beskeden, og send den til pega@ucn.dk.';
+    });
+  });
+
+  /* ---------- Orkestrering (inspiration) ---------- */
+  var oSvg = document.getElementById('orchSvg'), oQ = document.getElementById('orchQ');
+  var NS = 'http://www.w3.org/2000/svg';
+  oSvg.setAttribute('viewBox', '-95 -10 590 420');
+  var NODES = [];
+  UC.forEach(function (u) { u.tools.forEach(function (t) { if (NODES.indexOf(t) < 0) NODES.push(t); }); });
+  function mk(tag, attrs, parent) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); (parent || oSvg).appendChild(e); return e; }
+  mk('circle', { cx: 200, cy: 200, r: 150, 'class': 'ring-c' });
+  mk('circle', { cx: 200, cy: 200, r: 96, 'class': 'ring-c' });
+  var EL = {};
+  NODES.forEach(function (t, i) {
+    var a = -Math.PI / 2 + i / NODES.length * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
+    var x = 200 + c * 150, y = 200 + s * 150;
+    EL[t] = { edge: mk('line', { x1: 200, y1: 200, x2: x, y2: y, 'class': 'edge' }) };
+  });
+  NODES.forEach(function (t, i) {
+    var a = -Math.PI / 2 + i / NODES.length * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
+    var x = 200 + c * 150, y = 200 + s * 150;
+    EL[t].halo = mk('circle', { cx: x, cy: y, r: 5, 'class': 'halo' });
+    EL[t].node = mk('circle', { cx: x, cy: y, r: 4.5, 'class': 'node' });
+    var lb = mk('text', { x: 200 + c * 164, y: 200 + s * 164 + 3.5, 'class': 'lbl', 'text-anchor': c > 0.25 ? 'start' : (c < -0.25 ? 'end' : 'middle') });
+    lb.textContent = t; EL[t].lbl = lb;
+  });
+  mk('circle', { cx: 200, cy: 200, r: 46, 'class': 'core-ring' });
+  mk('circle', { cx: 200, cy: 200, r: 36, 'class': 'core' });
+  var ct = mk('text', { x: 200, y: 206, 'class': 'core-t' }); ct.textContent = 'Claude';
+  var oIdx = 0, oTimer = null, oType = null;
+  function orchShow(i) {
+    var u = UC[i % UC.length];
+    NODES.forEach(function (t) {
+      var on = u.tools.indexOf(t) >= 0;
+      ['edge', 'node', 'halo', 'lbl'].forEach(function (k) { EL[t][k].classList.toggle('on', on); });
+    });
+    var q = u.q.length > 120 ? u.q.slice(0, 118).replace(/\s+\S*$/, '') + ' …' : u.q;
+    clearInterval(oType);
+    if (reduce) { oQ.textContent = q; return; }
+    var n = 0; oQ.textContent = '';
+    oType = setInterval(function () { n += 3; oQ.textContent = q.slice(0, n); if (n >= q.length) clearInterval(oType); }, 18);
+  }
+  orchShow(0);
+  function orchRun(on) {
+    clearInterval(oTimer);
+    if (on && !reduce) oTimer = setInterval(function () { oIdx++; orchShow(oIdx); }, 3600);
+  }
+
+  /* ---------- Portræt med terrænringe (om) ---------- */
+  var pt = document.getElementById('portrait'), rc = document.getElementById('ringCv'), rctx = rc.getContext('2d');
+  var TAGS = [['BIM', '#ff7a3d'], ['BR18', '#e9f0eb'], ['Sprogmodeller', '#59d2ff'], ['Byggetilladelser', '#b18cff'], ['Modelcheck', '#ff7a3d'], ['Bygningslovgivning', '#7ee2a0']];
+  var tagEls = TAGS.map(function (tg) {
+    var s = document.createElement('span'); s.className = 'tag'; s.innerHTML = '<i style="background:' + tg[1] + '"></i>' + esc(tg[0]);
+    s.setAttribute('aria-hidden', 'true'); pt.appendChild(s); return s;
+  });
+  var PS = 0, pRun = false;
+  function ringSize() {
+    var r = pt.getBoundingClientRect(); PS = r.width;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    rc.width = Math.round(PS * dpr); rc.height = Math.round(PS * dpr);
+    rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ringDraw(performance.now());
+  }
+  function ringDraw(now) {
+    if (!PS) return;
+    var t = (now - t0) / 1000, c = PS / 2;
+    rctx.clearRect(0, 0, PS, PS);
+    var N = 11;
+    for (var k = 0; k < N; k++) {
+      var r0 = PS * (0.285 + k * 0.019), amp = PS * (0.006 + k * 0.0022);
+      rctx.beginPath();
+      for (var i = 0; i <= 120; i++) {
+        var a = i / 120 * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+        var r = r0 + amp * (vnoise(ca * 1.3 + 5, sa * 1.3 + k * 0.35, t * 0.18) - 0.5) * 2.6;
+        var x = c + ca * r, y = c + sa * r;
+        if (i === 0) rctx.moveTo(x, y); else rctx.lineTo(x, y);
+      }
+      var f = k / (N - 1);
+      var col = f < 0.5 ? 'rgba(255,122,61,' + (0.55 - f * 0.6) + ')' : 'rgba(89,210,255,' + (0.12 + (f - 0.5) * 0.5) + ')';
+      rctx.strokeStyle = col; rctx.lineWidth = k === 0 ? 1.6 : 1; rctx.stroke();
+    }
+    // skanner
+    var sa2 = t * 0.6;
+    rctx.beginPath(); rctx.moveTo(c, c); rctx.arc(c, c, PS * 0.5, sa2, sa2 + 0.35); rctx.closePath();
+    var g = rctx.createRadialGradient(c, c, PS * 0.27, c, c, PS * 0.5);
+    g.addColorStop(0, 'rgba(255,122,61,0)'); g.addColorStop(1, 'rgba(255,122,61,0.10)');
+    rctx.fillStyle = g; rctx.fill();
+    tagEls.forEach(function (el, i) {
+      var a = i / tagEls.length * Math.PI * 2 + t * 0.06;
+      el.style.left = (c + Math.cos(a) * PS * 0.44) + 'px';
+      el.style.top = (c + Math.sin(a) * PS * 0.40) + 'px';
+    });
+  }
+  function ringLoop(now) {
+    if (!pRun) return;
+    ringDraw(now);
+    requestAnimationFrame(ringLoop);
+  }
+  function ringRun(on) {
+    if (on && !pRun && !reduce) { pRun = true; requestAnimationFrame(ringLoop); }
+    if (!on) pRun = false;
+  }
+  window.addEventListener('resize', function () { if (!document.querySelector('[data-view="om"]').hidden) ringSize(); });
+
+  /* ---------- Visninger ---------- */
+  var VIEWS = ['inspiration', 'om'];
+  function route() {
+    var h = decodeURIComponent(location.hash.slice(1));
+    var view = VIEWS.indexOf(h) >= 0 ? h : null;
+    var el = !view && h ? document.getElementById(h) : null;
+    if (!view) { var host = el && el.closest('[data-view]'); view = host ? host.dataset.view : 'start'; }
+    document.querySelectorAll('[data-view]').forEach(function (v) { v.hidden = v.dataset.view !== view; });
+    document.querySelectorAll('.nav a[data-nav]').forEach(function (a) {
+      if (a.dataset.nav === view && view !== 'start') a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+    if (view === 'start') resize();
+    if (view === 'om') ringSize();
+    orchRun(view === 'inspiration');
+    ringRun(view === 'om');
+    if (el) el.scrollIntoView(); else window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', route);
+  route();
+})();
+</script>
+
+</body>
+</html>
