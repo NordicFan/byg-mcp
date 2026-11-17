@@ -1,12 +1,16 @@
-# Enhedstests ved push og pull requests. Selve build og deploy til Cloudflare Containers sker i
-# Cloudflare Workers Builds, som er koblet direkte på repoet (ingen API-token i GitHub).
-name: Tests
+# Tests ved hvert push. Ved push til main bygges containeren derefter og deployes til
+# Cloudflare Containers, hvis repo-secret CLOUDFLARE_API_TOKEN findes.
+name: Tests og deploy
 
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -28,3 +32,32 @@ jobs:
       - run: npm ci
       - name: Typetjek Worker
         run: npx tsc --noEmit
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Tjek at token findes
+        id: tjek
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN mangler i repoets secrets, så deploy springes over."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.tjek.outputs.ok == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.tjek.outputs.ok == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+        if: steps.tjek.outputs.ok == 'true'
+      - name: Byg container og deploy
+        if: steps.tjek.outputs.ok == 'true'
+        run: npx wrangler deploy
