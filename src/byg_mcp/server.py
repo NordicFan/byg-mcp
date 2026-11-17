@@ -1462,6 +1462,13 @@ def main() -> None:
                    help="Uden sessioner (til containere, der kan sove mellem kald)")
     args = p.parse_args()
 
+    # Værktøjer der ikke skal udstilles, fx energimaerke i den hostede udgave (personlig EMOData-adgang).
+    for navn in filter(None, (x.strip() for x in os.environ.get("BYG_MCP_SKJUL_VAERKTOEJER", "").split(","))):
+        try:
+            mcp.remove_tool(navn)
+        except Exception:  # ukendt navn: ignorér
+            pass
+
     if not args.http:
         mcp.run()
         return

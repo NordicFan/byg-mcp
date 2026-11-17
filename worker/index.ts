@@ -13,8 +13,6 @@ interface Env {
   BYG_MCP_HTTP_TOKEN: string;
   DATAFORDELER_API_KEY?: string;
   DATAFORSYNINGEN_TOKEN?: string;
-  EMO_BRUGERNAVN?: string;
-  EMO_ADGANGSKODE?: string;
 }
 
 export class BygMcp extends Container<Env> {
@@ -24,7 +22,8 @@ export class BygMcp extends Container<Env> {
   constructor(ctx: ConstructorParameters<typeof Container<Env>>[0], env: Env) {
     super(ctx, env);
     const vars: Record<string, string> = { BYG_MCP_HTTP_TOKEN: env.BYG_MCP_HTTP_TOKEN };
-    for (const k of ["DATAFORDELER_API_KEY", "DATAFORSYNINGEN_TOKEN", "EMO_BRUGERNAVN", "EMO_ADGANGSKODE"] as const) {
+    // EMOData (energimærker) sendes bevidst ikke med: adgangen er personlig og må ikke deles via tjenesten.
+    for (const k of ["DATAFORDELER_API_KEY", "DATAFORSYNINGEN_TOKEN"] as const) {
       const v = env[k];
       if (v) vars[k] = v;
     }

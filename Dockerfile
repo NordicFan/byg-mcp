@@ -21,6 +21,7 @@ RUN uv sync --frozen --no-dev
 ENV BYG_MCP_HOST=0.0.0.0 \
     BYG_MCP_PORT=8080 \
     BYG_MCP_STATELESS=1 \
+    BYG_MCP_SKJUL_VAERKTOEJER=energimaerke \
     BYG_MCP_CACHE=/tmp/byg-mcp-cache.sqlite
 
 RUN useradd --create-home --uid 10001 app && chown -R app /app

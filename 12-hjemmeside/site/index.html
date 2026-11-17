@@ -2,15 +2,13 @@
 <html lang="da">
 <head>
 <meta charset="utf-8">
-<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="fonts/fonts.css">
 <title>byg-mcp</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%23080d0b%27/%3E%3Cpath d=%27M12 50L22 12L52 18L46 52Z%27 fill=%27none%27 stroke=%27%23ff7a3d%27 stroke-width=%275%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M14 38C26 32 36 42 50 34%27 fill=%27none%27 stroke=%27%2359d2ff%27 stroke-width=%274%27 stroke-linecap=%27round%27/%3E%3C/svg%3E">
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Åben MCP-server, der giver Claude adgang til danske registre, planer, regler og klimadata til bygningsdesign.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400;62..125,600;62..125,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: et natkort over en dansk havnefront. Terrænkurverne lever i baggrunden, havet kan hæves,
    og hver sektion er et nyt lag på samme kort. Mørk version med vilje (enkelt tema). */
@@ -599,6 +597,22 @@ section.block .wrap { padding-block: 104px; }
 .good p { font-size: 0.9rem; color: var(--sea-ink); opacity: 0.85; }
 .good .ic { font-family: var(--mono); font-size: 0.72rem; color: var(--kote); text-transform: uppercase; letter-spacing: 0.08em; }
 
+/* Privatliv og vilkår */
+.legal { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 40px; align-items: start; }
+@media (max-width: 860px) { .legal { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+.legal nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 80px); display: grid; gap: 8px; }
+@media (max-width: 860px) { .legal nav { position: static; } }
+.legal nav a { color: var(--ink-soft); text-decoration: none; font-size: 0.92rem; }
+.legal nav a:hover { color: var(--ink); }
+.legal article { max-width: 68ch; display: grid; gap: 14px; }
+.legal h2 { font-size: var(--step-3); font-stretch: 75%; font-weight: 800; margin-top: 8px; }
+.legal h3 { font-size: 1.2rem; font-stretch: 85%; font-weight: 600; margin-top: 14px; }
+.legal p, .legal li { color: var(--ink-soft); }
+.legal ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+.legal b { color: var(--ink); font-weight: 600; }
+.legal .upd { font-family: var(--mono); font-size: 0.78rem; color: var(--ink-faint); }
+.legal hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0 8px; }
+
 footer { border-top: 1px solid var(--line); background: var(--bg-2); }
 footer .wrap { display: flex; flex-wrap: wrap; gap: 16px 40px; justify-content: space-between; padding-block: 30px; font-size: 0.88rem; color: var(--ink-soft); }
 footer b { color: var(--ink); font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 1.15rem; }
@@ -1013,7 +1027,7 @@ claude mcp add byg-dk --scope user -- uv run --directory "$PWD" byg-mcp</pre></d
 
       <div class="good">
         <div><span class="ic">Tid</span><b>Første svar tager 10-15 sek.</b><p>Serveren sover, når den ikke bruges, og vågner ved første kald. Derefter går det hurtigt.</p></div>
-        <div><span class="ic">Data</span><b>Kun værktøjskaldet sendes</b><p>byg-mcp modtager kun det, Claude sender til værktøjet, fx en adresse eller et søgeord. Den ser ikke resten af samtalen.</p></div>
+        <div><span class="ic">Data</span><b>Kun værktøjskaldet sendes</b><p>byg-mcp modtager kun det, Claude sender til værktøjet, fx en adresse. Ingen logs. <a href="#privatliv">Læs mere</a>.</p></div>
         <div><span class="ic">Kilder</span><b>Kilde på hvert svar</b><p>Bed Claude om at angive kilderne. De følger med fra byg-mcp med udbyder, licens og dato.</p></div>
         <div><span class="ic">Fejlfinding</span><b>Ser du ikke byg-dk?</b><p>Tjek, at URL'en er kopieret helt, at connectoren er slået til, og prøv i en ny chat. "Not found" betyder forkert adresse.</p></div>
       </div>
@@ -1344,13 +1358,69 @@ claude mcp add byg-dk --scope user -- uv run --directory "$PWD" byg-mcp</pre></d
     </div>
   </section>
 </div>
+<!-- ================= PRIVATLIV OG VILKÅR ================= -->
+<div data-view="privatliv" hidden>
+  <section class="page-hero">
+    <div class="wrap">
+      <p class="eyebrow">Privatliv og vilkår</p>
+      <h1>Hvad sker der med <span>dine data?</span></h1>
+      <p class="lede">Kort sagt: ingen cookies, ingen sporing, ingen logning af dine forespørgsler. byg-mcp ser kun det, Claude sender til værktøjerne, og gemmer det ikke.</p>
+    </div>
+  </section>
+  <section class="block">
+    <div class="wrap legal">
+      <nav aria-label="Indhold"><a href="#pp-dataansvar">Dataansvarlig</a><a href="#pp-side">Hjemmesiden</a><a href="#pp-mcp">MCP-tjenesten</a><a href="#pp-registre">Registerdata</a><a href="#pp-rettigheder">Dine rettigheder</a><a href="#vilkaar">Vilkår for brug</a></nav>
+      <article>
+        <p class="upd">Senest opdateret 17. november 2026</p>
+        <h2>Privatlivspolitik</h2>
+
+        <h3 id="pp-dataansvar">Dataansvarlig</h3>
+        <p>byg-mcp er et forsknings- og udviklingsprojekt. Dataansvarlig er <b>Peter Nørkjær Gade</b>, e-mail <b>pega@ucn.dk</b>.</p>
+
+        <h3 id="pp-side">Hjemmesiden byg-mcp.dk</h3>
+        <ul>
+          <li>Siden bruger <b>ingen cookies</b> og ingen analyse- eller sporingsværktøjer.</li>
+          <li>Skrifttyper ligger på siden selv. Der sendes ikke data til Google eller andre tredjeparter, når du besøger den.</li>
+          <li>Siden hostes hos <b>Cloudflare</b>, som behandler din IP-adresse og tekniske oplysninger for at levere siden og beskytte den mod angreb. Cloudflare er databehandler efter deres standardaftale.</li>
+          <li>Kontaktformularen sender ikke noget. Den samler din tekst, så du selv kan sende den som e-mail. Henvendelser bruges kun til at svare dig og slettes, når de ikke længere er relevante.</li>
+        </ul>
+
+        <h3 id="pp-mcp">MCP-tjenesten mcp.byg-mcp.dk</h3>
+        <ul>
+          <li>Når Claude bruger byg-mcp, modtager serveren <b>kun værktøjskaldets argumenter</b>, fx en adresse, en koordinat eller et søgeord. Den ser ikke din samtale.</li>
+          <li>Argumenterne bruges til at hente data hos de offentlige kilder, fx Datafordeleren, Dataforsyningen og Plandata.dk, som derfor modtager forespørgslen.</li>
+          <li>Svar caches midlertidigt for at undgå gentagne opslag og <b>slettes, når serveren går i dvale</b> efter 15 minutter uden brug.</li>
+          <li>Der føres <b>ingen logs</b> over forespørgsler. Serveren drives af Cloudflare som databehandler.</li>
+          <li>Dine samtaler med Claude behandles af Anthropic efter din egen aftale med dem, ikke af byg-mcp.</li>
+        </ul>
+
+        <h3 id="pp-registre">Data om bygninger og ejendomme</h3>
+        <p>byg-mcp viser offentlige registerdata som BBR, matrikel og planer, men <b>ikke ejernavne</b>. Oplysninger om en privat bolig kan alligevel være personoplysninger. De vises kun som svar på konkrete forespørgsler og gemmes ikke. Behandlingen sker på grundlag af en legitim interesse i at gøre offentlige data tilgængelige for faglig vurdering (databeskyttelsesforordningens artikel 6, stk. 1, litra f). Energimærker er ikke tilgængelige i den hostede udgave.</p>
+
+        <h3 id="pp-rettigheder">Dine rettigheder</h3>
+        <p>Du har ret til indsigt, berigtigelse, sletning og til at gøre indsigelse. Skriv til <b>pega@ucn.dk</b>. Du kan også klage til Datatilsynet på <a href="https://www.datatilsynet.dk">datatilsynet.dk</a>.</p>
+
+        <hr>
+        <h2 id="vilkaar">Vilkår for brug</h2>
+        <ul>
+          <li><b>Gratis afprøvning.</b> byg-mcp stilles gratis til rådighed i en afprøvningsperiode og kan ændres eller lukkes uden varsel.</li>
+          <li><b>Personlig adgang.</b> Din adresse til tjenesten er personlig og må ikke deles. Adgangen kan lukkes ved misbrug.</li>
+          <li><b>Rimelig brug.</b> Tjenesten er til faglige opslag, ikke til masseudtræk eller automatisk høst af data. Kilderne har deres egne begrænsninger.</li>
+          <li><b>Vejledende.</b> Svarene er grundlag for faglig vurdering og ikke myndighedsafgørelser. Der gives ingen garanti for, at data er fuldstændige eller korrekte, og du er selv ansvarlig for, hvordan du bruger dem. Ansvar er begrænset, så langt lovgivningen tillader.</li>
+          <li><b>Data og kildeangivelse.</b> Data tilhører de enkelte udbydere og bruges efter deres vilkår, primært CC BY 4.0. Angiv kilden, når du genbruger dem. Uddrag fra BR-vejledninger kan indeholde materiale fra standarder, som er ophavsretligt beskyttet.</li>
+          <li><b>Kode.</b> Kildekoden ligger på GitHub. Licensen fremgår af repoet.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+</div>
 </main>
 
 <footer>
   <div class="wrap">
     <div><b>byg-mcp</b><br>Udviklet af Peter Nørkjær Gade · UCN Teknologi og Business</div>
     <div>Kode: åben kildekode. Data: de enkelte udbyderes vilkår, primært CC BY 4.0.</div>
-    <div><a href="#inspiration">Inspiration</a> · <a href="#om">Om og kontakt</a> · <a href="https://aibench.dk/">AIBench</a> · <a href="https://github.com/NordicFan/byg-mcp">GitHub</a></div>
+    <div><a href="#inspiration">Inspiration</a> · <a href="#om">Om og kontakt</a> · <a href="#privatliv">Privatliv og vilkår</a> · <a href="https://aibench.dk/">AIBench</a> · <a href="https://github.com/NordicFan/byg-mcp">GitHub</a></div>
   </div>
 </footer>
 
@@ -1776,7 +1846,7 @@ claude mcp add byg-dk --scope user -- uv run --directory "$PWD" byg-mcp</pre></d
     ['vejrfil', 'energi', 'EPW-vejrfil (TMY) til energi- og indeklimasimulering.'],
     ['el_co2', 'energi', 'CO₂ fra el nu og de seneste dage, plus BR18\'s emissionsfaktorer for el, fjernvarme og gas.'],
     ['lca_materiale', 'energi', 'GWP for materialer fra BR18\'s generiske data og ÖKOBAUDAT.'],
-    ['energimaerke', 'energi', 'Energimærker for ejendommen og forbedringsforslag med investering, besparelse og levetid.', 1],
+    ['energimaerke', 'energi', 'Energimærker og forbedringsforslag med investering, besparelse og levetid. Kun ved lokal kørsel med egen EMOData-adgang.', 1],
     ['bim_klassifikation', 'energi', 'Klasser og egenskaber i CCI, IFC 4.3 og DTU\'s BR18-bygningsdele via bSDD.']
   ];
   var grid = document.getElementById('tools'), q = document.getElementById('q'), fil = document.getElementById('filters'), cnt = document.getElementById('count');
@@ -2009,7 +2079,7 @@ claude mcp add byg-dk --scope user -- uv run --directory "$PWD" byg-mcp</pre></d
   window.addEventListener('resize', function () { if (!document.querySelector('[data-view="om"]').hidden) ringSize(); });
 
   /* ---------- Visninger ---------- */
-  var VIEWS = ['inspiration', 'om'];
+  var VIEWS = ['inspiration', 'om', 'privatliv'];
   function route() {
     var h = decodeURIComponent(location.hash.slice(1));
     var view = VIEWS.indexOf(h) >= 0 ? h : null;
