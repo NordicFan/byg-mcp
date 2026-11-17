@@ -1,6 +1,7 @@
 {
   // byg-mcp på Cloudflare Containers. Bygges og deployes af GitHub Actions (.github/workflows/tests.yml) ved push til main.
-  // Secrets (ikke her): BYG_MCP_HTTP_TOKEN, DATAFORDELER_API_KEY, DATAFORSYNINGEN_TOKEN. Sættes i Cloudflare under Workeren → Settings → Variables and Secrets.
+  // Secrets (ikke her): BYG_MCP_HTTP_TOKEN, DATAFORDELER_API_KEY, DATAFORSYNINGEN_TOKEN,
+  // og til ejerens instans BYG_MCP_EJER_TOKEN, EMO_BRUGERNAVN, EMO_ADGANGSKODE. Sættes i Cloudflare under Workeren → Settings → Variables and Secrets.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "byg-mcp",
   "account_id": "feab60ec5660f869b09bea0ef8d641ad",
@@ -10,17 +11,19 @@
   // Ingen request-logs: forespørgsler (fx adresser) gemmes ikke hos Cloudflare.
   "observability": { "enabled": false },
   "containers": [
-    {
-      "class_name": "BygMcp",
-      "image": "./Dockerfile",
-      "instance_type": "basic",
-      "max_instances": 1
-    }
+    { "class_name": "BygMcp", "image": "./Dockerfile", "instance_type": "basic", "max_instances": 1 },
+    // Ejerens egen instans med energimærker (EMOData-login). Starter kun, når ejer-adressen bruges.
+    { "class_name": "BygMcpEjer", "image": "./Dockerfile", "instance_type": "basic", "max_instances": 1 }
   ],
   "durable_objects": {
-    "bindings": [{ "class_name": "BygMcp", "name": "BYG_MCP" }]
+    "bindings": [
+      { "class_name": "BygMcp", "name": "BYG_MCP" },
+      { "class_name": "BygMcpEjer", "name": "BYG_MCP_EJER" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BygMcp"] }]
-  // Når den virker på workers.dev, flyttes mcp.byg-mcp.dk hertil:
-  // "routes": [{ "pattern": "mcp.byg-mcp.dk", "custom_domain": true }]
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["BygMcp"] },
+    { "tag": "v2", "new_sqlite_classes": ["BygMcpEjer"] }
+  ]
+  // Custom domain mcp.byg-mcp.dk er sat op i Cloudflare-dashboardet.
 }
