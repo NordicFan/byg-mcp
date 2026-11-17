@@ -1,0 +1,30 @@
+# Deployer hjemmesiden (12-hjemmeside/site) til Cloudflare Pages-projektet "byg-mcp" (byg-mcp.dk),
+# når siden ændres på main. Bruger samme repo-secret CLOUDFLARE_API_TOKEN som containeren.
+name: Hjemmeside
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "12-hjemmeside/site/**"
+      - ".github/workflows/site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Deploy til Cloudflare Pages
+        run: npx wrangler pages deploy 12-hjemmeside/site --project-name byg-mcp --branch main --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: feab60ec5660f869b09bea0ef8d641ad

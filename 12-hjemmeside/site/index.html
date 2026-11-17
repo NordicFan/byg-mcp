@@ -5,6 +5,7 @@
 <style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>byg-mcp</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%23080d0b%27/%3E%3Cpath d=%27M12 50L22 12L52 18L46 52Z%27 fill=%27none%27 stroke=%27%23ff7a3d%27 stroke-width=%275%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M14 38C26 32 36 42 50 34%27 fill=%27none%27 stroke=%27%2359d2ff%27 stroke-width=%274%27 stroke-linecap=%27round%27/%3E%3C/svg%3E">
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Åben MCP-server, der giver Claude adgang til danske registre, planer, regler og klimadata til bygningsdesign.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -516,6 +517,88 @@ section.block .wrap { padding-block: 104px; }
 .ms b { font-family: var(--display); font-stretch: 70%; font-weight: 800; font-size: 1.6rem; line-height: 1; }
 .ms span { color: var(--ink-soft); font-size: 0.86rem; line-height: 1.4; }
 
+/* Knapper: kølig kant ved siden af den orange */
+.btn-ghost { border-color: rgba(89,210,255,0.35); }
+.btn-ghost:hover { border-color: var(--kote); color: var(--kote); background: rgba(89,210,255,0.06); }
+
+/* Hvad er en MCP */
+.mcp-intro { border-bottom: 1px solid var(--line); background: radial-gradient(ellipse 60% 80% at 50% 0%, rgba(89,210,255,0.06), transparent 70%), var(--bg); }
+.mcp-fig { background: var(--panel); border: 1px solid var(--line-2); border-radius: 16px; padding: 18px; min-width: 0; }
+.mcp-fig svg { display: block; width: 100%; height: auto; }
+.mcp-fig .nd { fill: var(--panel-2); stroke: var(--line-2); stroke-width: 1.4; }
+.mcp-fig .nd-me { fill: var(--panel-2); stroke: var(--ink-soft); stroke-width: 1.4; }
+.mcp-fig .nd-ai { fill: var(--panel-2); stroke: #b18cff; stroke-width: 1.6; }
+.mcp-fig .nd-mcp { fill: #1d120b; stroke: var(--matrikel); stroke-width: 2; filter: drop-shadow(0 0 14px rgba(255,122,61,0.35)); }
+.mcp-fig .nd-src { fill: var(--bg-2); stroke: rgba(89,210,255,0.45); stroke-width: 1.2; }
+.mcp-fig .t-h { font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 26px; fill: var(--ink); text-anchor: middle; }
+.mcp-fig .t-s { font-family: var(--body); font-size: 13px; fill: var(--ink-soft); text-anchor: middle; }
+.mcp-fig .t-src { font-family: var(--mono); font-size: 12.5px; fill: var(--ink); }
+.mcp-fig .t-tag { font-family: var(--mono); font-size: 11px; fill: var(--ink-faint); text-anchor: middle; letter-spacing: 0.08em; }
+.mcp-fig .ln { fill: none; stroke: var(--line-2); stroke-width: 1.4; }
+.mcp-fig .ln-req { fill: none; stroke: rgba(255,122,61,0.55); stroke-width: 1.6; stroke-dasharray: 5 7; animation: flow 1.2s linear infinite; }
+.mcp-fig .ln-res { fill: none; stroke: rgba(89,210,255,0.55); stroke-width: 1.6; stroke-dasharray: 5 7; animation: flowback 1.2s linear infinite; }
+@keyframes flowback { to { stroke-dashoffset: 24; } }
+.mcp-fig .ln-src { fill: none; stroke: rgba(89,210,255,0.28); stroke-width: 1.2; }
+.mcp-fig .p-req { fill: var(--matrikel); }
+.mcp-fig .p-res { fill: var(--kote); }
+.mcp-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 28px; border-top: 1px solid var(--line-2); }
+@media (max-width: 760px) { .mcp-steps { grid-template-columns: minmax(0, 1fr); } }
+.mcp-steps div { padding: 20px 22px 4px 0; display: grid; gap: 8px; align-content: start; }
+.mcp-steps div + div { padding-left: 22px; border-left: 1px solid var(--line); }
+@media (max-width: 760px) { .mcp-steps div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); } }
+.mcp-steps b { font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 1.3rem; }
+.mcp-steps b span { color: var(--matrikel); margin-right: 8px; font-family: var(--mono); font-size: 0.85rem; font-weight: 500; }
+.mcp-steps p { color: var(--ink-soft); font-size: 0.95rem; }
+.mcp-note { margin-top: 18px; font-size: 0.9rem; color: var(--ink-faint); }
+.mcp-note a { color: var(--kote); }
+
+/* Kom i gang: hav-blåt bånd */
+:root { --sea: #0a1826; --sea-2: #0e2134; --sea-3: #13304a; --sea-line: #1e3e5c; --sea-ink: #cfe6f5; }
+.start { background: linear-gradient(180deg, var(--sea) 0%, #08131f 100%); border-block: 1px solid var(--sea-line); position: relative; overflow: hidden; }
+.start::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+  background: repeating-radial-gradient(ellipse 120% 70% at 85% 0%, transparent 0 34px, rgba(89,210,255,0.05) 34px 35px);
+}
+.start .wrap { position: relative; }
+.start .eyebrow { color: var(--sea-ink); }
+.start .eyebrow::before { background: var(--kote); }
+.start .sec-head p { color: var(--sea-ink); opacity: 0.85; }
+.start .sec-head p a { color: var(--kote); }
+.start-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr); gap: 32px; align-items: start; }
+@media (max-width: 960px) { .start-grid { grid-template-columns: minmax(0, 1fr); } }
+.road { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; position: relative; }
+.road::before { content: ""; position: absolute; left: 21px; top: 10px; bottom: 10px; width: 2px; background: linear-gradient(var(--kote), rgba(89,210,255,0.15)); }
+.road li { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 16px; padding: 4px 0 26px; }
+.road .n { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--sea-2); border: 2px solid var(--kote); color: var(--kote); font-family: var(--display); font-stretch: 70%; font-weight: 800; font-size: 1.3rem; position: relative; z-index: 1; }
+.road li:first-child .n { background: var(--kote); color: var(--sea); box-shadow: 0 0 24px rgba(89,210,255,0.4); }
+.road li > div > b { display: block; font-size: 1.08rem; font-weight: 600; margin: 8px 0 6px; }
+.road p b { color: #fff; font-weight: 600; }
+.road .mini pre { white-space: pre-wrap; }
+.tabpanel[hidden] { display: none; }
+.road p { color: var(--sea-ink); opacity: 0.85; font-size: 0.95rem; }
+.road p code { background: var(--sea-3); border-radius: 4px; padding: 1px 6px; font-size: 0.82rem; color: var(--ink); overflow-wrap: anywhere; }
+.road .mini { margin-top: 12px; }
+.start .tabs { background: var(--sea-2); border-color: var(--sea-line); }
+.start .tablist { background: var(--sea); border-bottom-color: var(--sea-line); }
+.start .tablist button { color: var(--sea-ink); opacity: 0.75; }
+.start .tablist button[aria-selected="true"] { opacity: 1; color: #fff; border-bottom-color: var(--kote); }
+.start .tabpanel p, .start .tabpanel li { color: var(--sea-ink); }
+.start .codebox { background: #061019; border-color: var(--sea-line); }
+.start .copy { background: var(--sea-3); border-color: var(--sea-line); }
+.howto { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; counter-reset: h; }
+.howto li { counter-increment: h; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; font-size: 0.95rem; line-height: 1.5; }
+.howto li::before { content: counter(h); width: 24px; height: 24px; border-radius: 6px; background: var(--sea-3); color: var(--kote); display: grid; place-items: center; font: 600 0.78rem var(--mono); }
+.howto b { color: #fff; font-weight: 600; }
+.howto code { background: var(--sea-3); border-radius: 4px; padding: 1px 6px; font-size: 0.82rem; color: var(--ink); overflow-wrap: anywhere; }
+.tip { border-left: 3px solid var(--kote); background: rgba(89,210,255,0.07); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 0.9rem; color: var(--sea-ink); }
+.good { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 40px; }
+@media (max-width: 960px) { .good { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .good { grid-template-columns: minmax(0, 1fr); } }
+.good div { background: rgba(14,33,52,0.7); border: 1px solid var(--sea-line); border-radius: 12px; padding: 16px; display: grid; gap: 6px; align-content: start; }
+.good b { font-weight: 600; color: #fff; }
+.good p { font-size: 0.9rem; color: var(--sea-ink); opacity: 0.85; }
+.good .ic { font-family: var(--mono); font-size: 0.72rem; color: var(--kote); text-transform: uppercase; letter-spacing: 0.08em; }
+
 footer { border-top: 1px solid var(--line); background: var(--bg-2); }
 footer .wrap { display: flex; flex-wrap: wrap; gap: 16px 40px; justify-content: space-between; padding-block: 30px; font-size: 0.88rem; color: var(--ink-soft); }
 footer b { color: var(--ink); font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 1.15rem; }
@@ -556,10 +639,10 @@ footer b { color: var(--ink); font-family: var(--display); font-stretch: 72%; fo
         <h1>Hele <span class="o">grunden</span><br>i ét <span class="k">spørgsmål</span></h1>
         <p class="lede">byg-mcp giver Claude adgang til <b>matrikel, BBR, lokalplaner, restriktioner, terræn, klimafremskrivninger, BR18 og LCA-data</b>. Spørg om en grund på almindeligt dansk, og få svaret med kilde på hvert faktum.</p>
         <div class="cta">
-          <a class="btn btn-primary" href="#kom-i-gang">Kom i gang gratis</a>
+          <a class="btn btn-primary" href="#kom-i-gang">Kom i gang</a>
           <a class="btn btn-ghost" href="#demo">Se den arbejde ↓</a>
         </div>
-        <p class="works"><span>Claude Desktop</span><span>Claude Code</span><span>26 værktøjer</span><span>20 officielle kilder</span></p>
+        <p class="works"><span>claude.ai og mobil</span><span>Claude Desktop</span><span>Claude Code</span><span>26 værktøjer</span><span>20 officielle kilder</span></p>
       </div>
 
       <aside class="sea" aria-label="Hæv havniveauet på kortet">
@@ -581,6 +664,76 @@ footer b { color: var(--ink); font-family: var(--display); font-stretch: 72%; fo
         </div>
         <p class="sea-note" id="seaNote">Træk i skyderen, eller bevæg musen over kortet. Kurverne er en illustration. Tallene på skyderen er fra <code>oversvoemmelse</code> for havnefronten i Aalborg.</p>
       </aside>
+    </div>
+  </section>
+
+  <!-- HVAD ER EN MCP -->
+  <section class="block mcp-intro" id="hvad-er-mcp">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Hvad er en MCP?</p>
+        <h2>Et stik mellem AI og byggeriets data</h2>
+        <p><b>MCP (Model Context Protocol)</b> er en åben standard, der lader AI-assistenter som Claude bruge eksterne værktøjer og datakilder. Tænk på det som et USB-C-stik til AI: ét stik, mange tilslutninger. byg-mcp er stikket til de danske registre, planer og regler.</p>
+      </div>
+      <figure class="mcp-fig" aria-label="Infografik: du spørger Claude, Claude kalder byg-mcp via MCP, og byg-mcp henter data fra de officielle kilder og sender svaret tilbage med kilder">
+        <svg id="mcpSvg" viewBox="0 0 1000 340" role="img" aria-hidden="true">
+          <!-- forbindelser -->
+          <path class="ln" d="M126 170H208"></path>
+          <path id="req" class="ln-req" d="M382 158H468"></path>
+          <path id="res" class="ln-res" d="M468 182H382"></path>
+          <g>
+            <path id="s1" class="ln-src" d="M662 170C712 170 712 52 760 52"></path>
+            <path id="s2" class="ln-src" d="M662 170C712 170 712 104 760 104"></path>
+            <path id="s3" class="ln-src" d="M662 170C712 170 712 156 760 156"></path>
+            <path id="s4" class="ln-src" d="M662 170C712 170 712 208 760 208"></path>
+            <path id="s5" class="ln-src" d="M662 170C712 170 712 260 760 260"></path>
+            <path id="s6" class="ln-src" d="M662 170C712 170 712 312 760 312"></path>
+          </g>
+          <!-- Du -->
+          <circle class="nd-me" cx="82" cy="170" r="44"></circle>
+          <circle cx="82" cy="156" r="11" fill="none" stroke="#9badA3" stroke-width="2"></circle>
+          <path d="M60 190C64 176 100 176 104 190" fill="none" stroke="#9badA3" stroke-width="2"></path>
+          <text class="t-h" x="82" y="248" style="font-size:20px">Du</text>
+          <text class="t-s" x="82" y="268">stiller et spørgsmål</text>
+          <!-- Claude -->
+          <rect class="nd-ai" x="210" y="118" width="172" height="104" rx="14"></rect>
+          <text class="t-h" x="296" y="166">Claude</text>
+          <text class="t-s" x="296" y="190">forstår og vælger</text>
+          <text class="t-s" x="296" y="207">værktøjer</text>
+          <text class="t-tag" x="425" y="146">MCP</text>
+          <!-- byg-mcp -->
+          <rect class="nd-mcp" x="470" y="102" width="192" height="136" rx="16"></rect>
+          <path d="M498 128L506 120L526 123L522 142Z" fill="none" stroke="#ff7a3d" stroke-width="2" stroke-dasharray="4 2"></path>
+          <text class="t-h" x="566" y="168">byg-mcp</text>
+          <text class="t-s" x="566" y="192">26 værktøjer</text>
+          <text class="t-s" x="566" y="210">henter og samler</text>
+          <!-- kilder -->
+          <g>
+            <rect class="nd-src" x="760" y="36" width="222" height="32" rx="16"></rect><text class="t-src" x="780" y="57">Datafordeleren · BBR, matrikel</text>
+            <rect class="nd-src" x="760" y="88" width="222" height="32" rx="16"></rect><text class="t-src" x="780" y="109">Plandata.dk · lokalplaner</text>
+            <rect class="nd-src" x="760" y="140" width="222" height="32" rx="16"></rect><text class="t-src" x="780" y="161">Bygningsreglementet</text>
+            <rect class="nd-src" x="760" y="192" width="222" height="32" rx="16"></rect><text class="t-src" x="780" y="213">Miljøportal · restriktioner</text>
+            <rect class="nd-src" x="760" y="244" width="222" height="32" rx="16"></rect><text class="t-src" x="780" y="265">Dataforsyningen · terræn</text>
+            <rect class="nd-src" x="760" y="296" width="222" height="32" rx="16"></rect><text class="t-src" x="780" y="317">DMI · klima og havstigning</text>
+          </g>
+          <!-- pulser -->
+          <circle class="p-req" r="5"><animateMotion dur="2.2s" repeatCount="indefinite"><mpath href="#req"></mpath></animateMotion></circle>
+          <circle class="p-res" r="5"><animateMotion dur="2.2s" begin="1.1s" repeatCount="indefinite"><mpath href="#res"></mpath></animateMotion></circle>
+          <circle class="p-res" r="3.5"><animateMotion dur="2.6s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#s1"></mpath></animateMotion></circle>
+          <circle class="p-res" r="3.5"><animateMotion dur="2.6s" begin="0.4s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#s2"></mpath></animateMotion></circle>
+          <circle class="p-res" r="3.5"><animateMotion dur="2.6s" begin="0.8s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#s3"></mpath></animateMotion></circle>
+          <circle class="p-res" r="3.5"><animateMotion dur="2.6s" begin="1.2s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#s4"></mpath></animateMotion></circle>
+          <circle class="p-res" r="3.5"><animateMotion dur="2.6s" begin="1.6s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#s5"></mpath></animateMotion></circle>
+          <circle class="p-res" r="3.5"><animateMotion dur="2.6s" begin="2s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#s6"></mpath></animateMotion></circle>
+          <circle class="p-req" r="4"><animateMotion dur="1.6s" repeatCount="indefinite" path="M126 170H208"></animateMotion></circle>
+        </svg>
+      </figure>
+      <div class="mcp-steps">
+        <div><b><span>01</span>Du spørger</b><p>Helt almindeligt dansk, fx “Hvad må jeg bygge på Bispensgade 3 i Aalborg?”</p></div>
+        <div><b><span>02</span>Claude kalder byg-mcp</b><p>Claude kan se byg-mcp's værktøjer via MCP og vælger selv, hvilke der skal bruges, og i hvilken rækkefølge.</p></div>
+        <div><b><span>03</span>Svar med kilder</b><p>byg-mcp henter data direkte hos myndighederne og sender dem tilbage med kilde. Claude samler svaret.</p></div>
+      </div>
+      <p class="mcp-note">MCP er udviklet af Anthropic som åben standard og understøttes af stadig flere AI-værktøjer. <a href="https://modelcontextprotocol.io">Læs mere på modelcontextprotocol.io ↗</a></p>
     </div>
   </section>
 
@@ -719,7 +872,7 @@ footer b { color: var(--ink); font-family: var(--display); font-stretch: 72%; fo
       </div>
       <div class="api">
         <dl class="spec">
-          <div><dt>Transport</dt><dd><b>stdio</b> til Claude Desktop og Claude Code. <b>Streamable HTTP</b> med <code>byg-mcp --http</code>, beskyttet af en hemmelig sti, til claude.ai via en tunnel.</dd></div>
+          <div><dt>Transport</dt><dd><b>Streamable HTTP</b> på <code>https://mcp.byg-mcp.dk/mcp/&lt;nøgle&gt;</code>, hostet på Cloudflare Containers. Lokalt også <b>stdio</b> til Claude Desktop og Claude Code.</dd></div>
           <div><dt>Værktøjer</dt><dd>26 værktøjer med typede argumenter og beskrivelser på dansk, så modellen selv kan vælge.</dd></div>
           <div><dt>Prompts</dt><dd><code>grundscreening</code> (adresse, projektidé) og <code>br18_tjek</code> (projektbeskrivelse, emner). Færdige arbejdsgange, der kalder de rigtige værktøjer i rækkefølge.</dd></div>
           <div><dt>Ressourcer</dt><dd><code>br18://oversigt</code> og <code>br18://paragraf/{nr}</code>. Hele bygningsreglementet som læsbare ressourcer.</dd></div>
@@ -789,52 +942,80 @@ asyncio.run(main())</pre></div>
   </section>
 
   <!-- KOM I GANG -->
-  <section class="block" id="kom-i-gang" style="border-top:1px solid var(--line)">
+  <section class="block start" id="kom-i-gang">
     <div class="wrap">
       <div class="sec-head">
         <p class="eyebrow">Kom i gang</p>
-        <h2>Kører på din egen maskine på ti minutter</h2>
-        <p>byg-mcp er gratis og åben. Dine nøgler bliver hos dig.</p>
+        <h2>Klar i Claude på fem minutter</h2>
+        <p>byg-mcp kører hos Cloudflare, så du skal ikke installere noget. Du forbinder Claude til serveren med din personlige adresse, og så er værktøjerne klar i browseren, på mobilen og på computeren.</p>
       </div>
-      <div class="setup">
-        <div class="steps">
-          <ol>
-            <li><span class="n">1</span><div><b>Installér uv og hent koden</b><p>uv er et hurtigt værktøj til Python-projekter. Klon projektet, og kør <code>uv sync</code>.</p></div></li>
-            <li><span class="n">2</span><div><b>Opret gratis nøgler</b><p>En nøgle fra Datafordeleren og et token fra Dataforsyningen. Uden dem virker regler, plan, klima og LCA stadig.</p></div></li>
-            <li><span class="n">3</span><div><b>Forbind Claude</b><p>Vælg din Claude til højre, og kopiér opsætningen.</p></div></li>
-            <li><span class="n">4</span><div><b>Spørg</b><p>“Lav en grundscreening af Bispensgade 3, Aalborg, til et rækkehusprojekt.”</p></div></li>
-          </ol>
-        </div>
+      <div class="start-grid">
+        <ol class="road">
+          <li><span class="n">1</span><div>
+            <b>Få din personlige adresse</b>
+            <p>Adgang er gratis i afprøvningsperioden. <a href="#kontakt">Skriv til mig</a>, så får du en adresse som <code>https://mcp.byg-mcp.dk/mcp/&lt;din-nøgle&gt;</code>. Behandl den som en adgangskode, og del den ikke.</p>
+          </div></li>
+          <li><span class="n">2</span><div>
+            <b>Tilføj byg-mcp i Claude</b>
+            <p>Vælg din Claude til højre, og følg trinene. I claude.ai tager det under et minut.</p>
+          </div></li>
+          <li><span class="n">3</span><div>
+            <b>Slå værktøjerne til</b>
+            <p>Åbn en ny chat, klik på værktøjsikonet i skrivefeltet, og sørg for, at <b>byg-dk</b> er slået til.</p>
+          </div></li>
+          <li><span class="n">4</span><div>
+            <b>Spørg</b>
+            <p>Start fx med dette, og skift adressen ud med din egen:</p>
+            <div class="codebox mini"><button class="copy" type="button">Kopiér</button><pre>Lav en grundscreening af Bispensgade 3, 9000 Aalborg, til et rækkehusprojekt. Angiv kilden til hvert punkt.</pre></div>
+          </div></li>
+        </ol>
+
         <div class="tabs">
-          <div class="tablist" role="tablist" aria-label="Opsætning">
-            <button role="tab" id="t-code" aria-selected="true" aria-controls="p-code" type="button">Claude Code</button>
+          <div class="tablist" role="tablist" aria-label="Vælg din Claude">
+            <button role="tab" id="t-web" aria-selected="true" aria-controls="p-web" type="button">claude.ai og mobil</button>
             <button role="tab" id="t-desk" aria-selected="false" aria-controls="p-desk" type="button">Claude Desktop</button>
-            <button role="tab" id="t-src" aria-selected="false" aria-controls="p-src" type="button">Hent koden</button>
+            <button role="tab" id="t-code" aria-selected="false" aria-controls="p-code" type="button">Claude Code</button>
+            <button role="tab" id="t-self" aria-selected="false" aria-controls="p-self" type="button">Kør selv</button>
           </div>
-          <div class="tabpanel" role="tabpanel" id="p-code" aria-labelledby="t-code">
-            <p>Én kommando. Serveren kan derefter bruges fra alle mapper.</p>
-            <div class="codebox"><button class="copy" type="button">Kopiér</button><pre>claude mcp add byg-dk --scope user -- \
-  uv run --directory /sti/til/byg-mcp byg-mcp</pre></div>
+          <div class="tabpanel" role="tabpanel" id="p-web" aria-labelledby="t-web">
+            <ol class="howto">
+              <li><span>Åbn <b>claude.ai</b>, og gå til <b>Indstillinger → Connectors</b>.</span></li>
+              <li><span>Klik på <b>Add custom connector</b>.</span></li>
+              <li><span>Navn: <code>byg-dk</code>. URL: din personlige adresse fra trin 1.</span></li>
+              <li><span>Lad felterne under <b>Advanced settings</b> stå tomme, og klik på <b>Add</b>.</span></li>
+              <li><span>Connectoren følger din konto, så den også virker i Claude-appen på mobilen.</span></li>
+            </ol>
+            <p class="tip">Egne connectors kræver en Claude-plan, der understøtter dem. Kan du ikke se knappen, så tjek din plan under Indstillinger.</p>
           </div>
           <div class="tabpanel" role="tabpanel" id="p-desk" aria-labelledby="t-desk" hidden>
-            <p>Indstillinger → Developer → Edit Config. Tilføj blokken, og genstart Claude.</p>
-            <div class="codebox"><button class="copy" type="button">Kopiér</button><pre>{
-  "mcpServers": {
-    "byg-dk": {
-      "command": "uv",
-      "args": ["run", "--directory", "/sti/til/byg-mcp", "byg-mcp"]
-    }
-  }
-}</pre></div>
+            <ol class="howto">
+              <li><span>Claude Desktop bruger de samme connectors som claude.ai. Har du tilføjet byg-dk dér, er den allerede med.</span></li>
+              <li><span>Ellers: åbn <b>Indstillinger → Connectors</b> i appen, og tilføj den med navn og URL som på claude.ai.</span></li>
+              <li><span>Genstart appen, hvis byg-dk ikke dukker op med det samme.</span></li>
+            </ol>
           </div>
-          <div class="tabpanel" role="tabpanel" id="p-src" aria-labelledby="t-src" hidden>
-            <p>Klon, installér og læg dine nøgler i <code>.env</code>.</p>
+          <div class="tabpanel" role="tabpanel" id="p-code" aria-labelledby="t-code" hidden>
+            <p>Én kommando i terminalen. Indsæt din personlige adresse.</p>
+            <div class="codebox"><button class="copy" type="button">Kopiér</button><pre>claude mcp add --transport http --scope user byg-dk https://mcp.byg-mcp.dk/mcp/&lt;din-nøgle&gt;</pre></div>
+            <p>Tjek forbindelsen med:</p>
+            <div class="codebox"><button class="copy" type="button">Kopiér</button><pre>claude mcp list</pre></div>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="p-self" aria-labelledby="t-self" hidden>
+            <p>For udviklere, der vil køre serveren lokalt med egne nøgler fra Datafordeleren og Dataforsyningen. Kræver <a href="https://docs.astral.sh/uv/">uv</a> og Git.</p>
             <div class="codebox"><button class="copy" type="button">Kopiér</button><pre>git clone https://github.com/NordicFan/byg-mcp
 cd byg-mcp
 uv sync
-cp .env.example .env   <span class="c"># indsæt dine nøgler</span></pre></div>
+cp .env.example .env   <span class="c"># indsæt dine nøgler</span>
+claude mcp add byg-dk --scope user -- uv run --directory "$PWD" byg-mcp</pre></div>
           </div>
         </div>
+      </div>
+
+      <div class="good">
+        <div><span class="ic">Tid</span><b>Første svar tager 10-15 sek.</b><p>Serveren sover, når den ikke bruges, og vågner ved første kald. Derefter går det hurtigt.</p></div>
+        <div><span class="ic">Data</span><b>Kun værktøjskaldet sendes</b><p>byg-mcp modtager kun det, Claude sender til værktøjet, fx en adresse eller et søgeord. Den ser ikke resten af samtalen.</p></div>
+        <div><span class="ic">Kilder</span><b>Kilde på hvert svar</b><p>Bed Claude om at angive kilderne. De følger med fra byg-mcp med udbyder, licens og dato.</p></div>
+        <div><span class="ic">Fejlfinding</span><b>Ser du ikke byg-dk?</b><p>Tjek, at URL'en er kopieret helt, at connectoren er slået til, og prøv i en ny chat. "Not found" betyder forkert adresse.</p></div>
       </div>
     </div>
   </section>
@@ -849,7 +1030,7 @@ cp .env.example .env   <span class="c"># indsæt dine nøgler</span></pre></div>
       <div class="principles">
         <div class="pr"><h3>Kilde på alt</h3><p>Hvert svar viser udbyder, licens og hentetidspunkt. Usikre adressematch bliver markeret.</p></div>
         <div class="pr"><h3>Vejledende</h3><p>Grundlag for din faglige vurdering. Erstatter ikke myndighedsdialog, servitutundersøgelse eller geoteknik.</p></div>
-        <div class="pr"><h3>Dine nøgler</h3><p>Serveren kører lokalt. Nøgler bliver i <code>.env</code> og maskeres i alle logs.</p></div>
+        <div class="pr"><h3>Sikker drift</h3><p>Serveren kører hos Cloudflare. Nøgler til datakilderne ligger som krypterede secrets, aldrig i koden, og maskeres i alle logs.</p></div>
         <div class="pr"><h3>Åben kode</h3><p>Se præcis, hvad der hentes og hvordan. Byg videre på det.</p></div>
       </div>
     </div>
@@ -1176,6 +1357,7 @@ cp .env.example .env   <span class="c"># indsæt dine nøgler</span></pre></div>
 <script>
 (function () {
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  try { if (reduce) document.getElementById('mcpSvg').pauseAnimations(); } catch (e) {}
   function fmt(n, d) { return n.toLocaleString('da-DK', { minimumFractionDigits: d, maximumFractionDigits: d }); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
